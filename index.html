@@ -149,6 +149,13 @@
                                         <option value="sentinel_ndvi">Satélite Sentinel-2 / NASA (NDVI Biomassa)</option>
                                     </select>
                                 </div>
+
+                                <!-- SELETOR DE DATA DO SATÉLITE REINCORPORADO -->
+                                <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
+                                    <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
+                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Apenas contornos das subdivisões ativos</span>
+                                </div>
                             </div>
 
                             <!-- FILTRO POR ANO SAFRA -->
@@ -1160,11 +1167,21 @@
             }
         }
 
-        // ALTERAÇÃO DE IMAGENS DE SATÉLITE COM FALLBACK ANTI-TELA BRANCA
+        // ALTERAÇÃO DE IMAGENS DE SATÉLITE COM PROVEDORES DE ALTA DISPONIBILIDADE (SEM TELA BRANCA)
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
             const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
+            const satDateBox = document.getElementById('box-sat-date');
+            const satDateInput = document.getElementById('sel-sat-date');
+
+            if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
+                if (satDateBox) satDateBox.classList.remove('hidden');
+            } else {
+                if (satDateBox) satDateBox.classList.add('hidden');
+            }
+
+            const dateVal = (satDateInput && satDateInput.value) ? satDateInput.value : '2026-02-01';
 
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
@@ -1172,7 +1189,7 @@
             const esriFallbackUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
             if (selectedType === 'sentinel_rgb') {
-                // Provedor 100% XYZ EOX Sentinel-2 Cloudless (Nunca Tela Branca)
+                // Servidor de Mosaicos Globais EOX Sentinel-2 RGB Cor Real
                 tileLayerLeft = L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg', {
                     attribution: 'Copernicus Sentinel-2 &copy; EOX',
                     maxZoom: 18
@@ -1184,7 +1201,7 @@
                 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // Provedor WMS Global Mundialis / NASA GIBS
+                // Servidor de Mosaicos Globais NDVI Biomassa (NASA / Mundialis)
                 tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
                     layers: 'NDVI',
                     format: 'image/png',
@@ -1213,11 +1230,6 @@
                     maxZoom: 18
                 }).addTo(mapRight);
             }
-
-            // Tratamento contra falhas de conexão de rede
-            tileLayerLeft.on('tileerror', function() {
-                console.warn('Erro ao carregar tile de satélite. Aplicando fallback HD...');
-            });
 
             updateGISMap();
         }
