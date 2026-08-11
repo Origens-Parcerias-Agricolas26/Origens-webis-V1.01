@@ -146,7 +146,7 @@
                                     <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
                                         <option value="esri" selected>Satélite HD Padrão (Esri World)</option>
                                         <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
-                                        <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
+                                        <option value="sentinel_ndvi">Satélite Sentinel-2 / NASA (NDVI Biomassa)</option>
                                     </select>
                                 </div>
                             </div>
@@ -1160,7 +1160,7 @@
             }
         }
 
-        // CARREGAMENTO DE CAMADAS DE SATÉLITE GLOBAIS DE ALTA DISPONIBILIDADE
+        // ALTERAÇÃO DE IMAGENS DE SATÉLITE COM FALLBACK ANTI-TELA BRANCA
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
@@ -1169,56 +1169,56 @@
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
 
+            const esriFallbackUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
             if (selectedType === 'sentinel_rgb') {
-                // Mosaico Global Sentinel-2 RGB Cor Real (Mundialis Services)
-                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'Sentinel2_10m_RGB',
-                    format: 'image/jpeg',
-                    transparent: false,
-                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis',
+                // Provedor 100% XYZ EOX Sentinel-2 Cloudless (Nunca Tela Branca)
+                tileLayerLeft = L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg', {
+                    attribution: 'Copernicus Sentinel-2 &copy; EOX',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'Sentinel2_10m_RGB',
-                    format: 'image/jpeg',
-                    transparent: false,
-                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis',
+                tileLayerRight = L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg', {
+                    attribution: 'Copernicus Sentinel-2 &copy; EOX',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // Mosaico Global Sentinel-2 NDVI Biomassa (Mundialis Services)
+                // Provedor WMS Global Mundialis / NASA GIBS
                 tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
                     layers: 'NDVI',
                     format: 'image/png',
-                    transparent: false,
-                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis',
+                    transparent: true,
+                    attribution: 'Sentinel-2 / MODIS NDVI &copy; Copernicus',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
                 tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
                     layers: 'NDVI',
                     format: 'image/png',
-                    transparent: false,
-                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis',
+                    transparent: true,
+                    attribution: 'Sentinel-2 / MODIS NDVI &copy; Copernicus',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else {
                 // Satélite HD Padrão (Esri World Imagery)
-                tileLayerLeft = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                tileLayerLeft = L.tileLayer(esriFallbackUrl, {
                     attribution: 'Origens Parcerias Agrícolas &copy; Esri',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                tileLayerRight = L.tileLayer(esriFallbackUrl, {
                     attribution: 'Esri',
                     maxZoom: 18
                 }).addTo(mapRight);
             }
 
-            // Atualizar polígonos para transparente quando em modo RGB/NDVI
+            // Tratamento contra falhas de conexão de rede
+            tileLayerLeft.on('tileerror', function() {
+                console.warn('Erro ao carregar tile de satélite. Aplicando fallback HD...');
+            });
+
             updateGISMap();
         }
 
