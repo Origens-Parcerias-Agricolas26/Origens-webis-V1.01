@@ -313,6 +313,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- FORMULÁRIO CADASTRAR NOVA FAZENDA -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-tractor text-origens-green mr-2"></i>Cadastrar Nova Fazenda</h3>
                             <form onsubmit="handleCreateFarm(event)" class="space-y-4">
@@ -344,6 +345,7 @@
                             </form>
                         </div>
 
+                        <!-- AUTORIZAÇÃO DE CLIENTE COM SELEÇÃO MÚLTIPLA DE FAZENDAS -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-user-plus text-origens-green mr-2"></i>Autorizar E-mail Google do Cliente</h3>
                             <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -446,10 +448,10 @@
         let splitPosition = 0.5;
         let isSyncing = false;
 
-        // FORMATADOR NUMÉRICO COM SUPORTE A VÍRGULAS BRASILEIRAS
+        // FORMATADOR NUMÉRICO COM TRATAMENTO RIGOROSO DE VÍRGULAS E STRINGS
         function format1Decimal(val) {
             if (val === null || val === undefined || val === '') return null;
-            const str = String(val).replace(',', '.');
+            const str = String(val).replace(',', '.').trim();
             const num = parseFloat(str);
             if (isNaN(num)) return null;
             return Math.round(num * 10) / 10;
@@ -463,7 +465,7 @@
             return str;
         }
 
-        // HIGIENIZA E CALCULA PARÂMETROS DERIVADOS DO SOLO (CTC, SB, V%, Sat. Al) SE FALTAREM NO EXCEL
+        // HIGIENIZA E CALCULA PARÂMETROS DERIVADOS DO SOLO (CTC, SB, V%, Sat. Al)
         function sanitizeAndCalculateSoilData(row) {
             if (!row || typeof row !== 'object') return {};
             const r = { ...row };
@@ -475,11 +477,10 @@
                 }
             });
 
-            // Teores de elementos básicos
             const ca = format1Decimal(r.Ca) || 0;
             const mg = format1Decimal(r.Mg) || 0;
             const rawK = format1Decimal(r.K) || 0;
-            const kCmol = rawK > 10 ? (rawK / 391) : rawK; // Converter mg/dm³ para cmolc/dm³ se necessário
+            const kCmol = rawK > 10 ? (rawK / 391) : rawK;
 
             const al = format1Decimal(r.Al) || 0;
             const h = format1Decimal(r.H) || 0;
@@ -487,29 +488,28 @@
             const sbCalc = ca + mg + kCmol;
             const ctcCalc = sbCalc + h + al;
 
-            // Se CTC não estiver direto na planilha, calcula automaticamente
-            if (r.CTC === undefined || r.CTC === null || r.CTC === '' || isNaN(parseFloat(r.CTC))) {
+            if (r.CTC === undefined || r.CTC === null || r.CTC === '' || isNaN(parseFloat(String(r.CTC).replace(',','.')))) {
                 if (ctcCalc > 0) r.CTC = format1Decimal(ctcCalc);
             } else {
                 r.CTC = format1Decimal(r.CTC);
             }
 
-            if (r.Sb === undefined || r.Sb === null || isNaN(parseFloat(r.Sb))) {
+            if (r.Sb === undefined || r.Sb === null || isNaN(parseFloat(String(r.Sb).replace(',','.')))) {
                 if (sbCalc > 0) r.Sb = format1Decimal(sbCalc);
             }
 
-            if (r['V%'] === undefined || r['V%'] === null || isNaN(parseFloat(r['V%']))) {
+            if (r['V%'] === undefined || r['V%'] === null || isNaN(parseFloat(String(r['V%']).replace(',','.')))) {
                 if (ctcCalc > 0) r['V%'] = format1Decimal((sbCalc / ctcCalc) * 100);
             }
 
-            if (r['Sat. Al'] === undefined || r['Sat. Al'] === null || isNaN(parseFloat(r['Sat. Al']))) {
+            if (r['Sat. Al'] === undefined || r['Sat. Al'] === null || isNaN(parseFloat(String(r['Sat. Al']).replace(',','.')))) {
                 if ((sbCalc + al) > 0) r['Sat. Al'] = format1Decimal((al / (sbCalc + al)) * 100);
             }
 
             return r;
         }
 
-        // BUSCA MULTI-SAFRA DE PROFUNDIDADE COM RESGATE HISTÓRICO
+        // BUSCA DE ATRIBUTOS COM SUPORTE FLEXÍVEL A MÚLTIPLAS SAFRAS
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
@@ -788,7 +788,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA NO DICIONÁRIO SAFRAS)
+        // POPULAR SELETOR DE ANO SAFRA (VARREDURA MULTI-ESTRUTURA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -838,7 +838,6 @@
             }
         }
 
-        // POPULAR SELETOR DE TALHÃO FILTRADO
         function populateTalhaoSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -1195,7 +1194,6 @@
             }
         }
 
-        // DESENHAR CAMADA GEOJSON PRESERVANDO A GEOMETRIA COMPLETA
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1213,7 +1211,7 @@
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
 
-                    let color = '#94a3b8'; // Sem Amostragem
+                    let color = '#94a3b8'; // Sem Amostragem / Cinza
                     if (val !== null && val !== undefined && !isNaN(val)) {
                         const matchedRule = rules.find(r => val >= r.min && val <= r.max);
                         if (matchedRule) color = matchedRule.color;
@@ -1553,7 +1551,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA MULTI-SAFRA E PROCESSAMENTO COMPLETO DE PLANILHAS
+        // LEITURA MULTI-SAFRA DE PLANILHAS EXCEL (PRESERVA HISTÓRICO DE Safras)
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1611,6 +1609,7 @@
                                                 if (safraVal) {
                                                     f.properties.safras[safraVal] = f.properties.safras[safraVal] || {};
                                                     f.properties.safras[safraVal][targetDepthKey] = r;
+                                                    f.properties[targetDepthKey + '_' + safraVal] = r;
                                                 }
                                                 
                                                 f.properties[targetDepthKey] = r;
