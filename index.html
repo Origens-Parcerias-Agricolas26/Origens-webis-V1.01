@@ -154,7 +154,7 @@
                                 </select>
                             </div>
 
-                            <!-- UPLOAD FERRAMENTA ADMIN (VISÍVEL APENAS PARA ADMINISTRATIVO MASTER) -->
+                            <!-- UPLOAD FERRAMENTA ADMIN -->
                             <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3 hidden">
                                 <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
                                 
@@ -576,7 +576,21 @@
         }
 
         async function compressGeoJSON(geojsonObj) {
-            const str = JSON.stringify(geojsonObj);
+            // Otimização de Coordenadas para Reduzir Tamanho mantendo precisão GIS perfeita
+            const sanitizedFeatures = geojsonObj.features ? geojsonObj.features.map(f => {
+                const geom = f.geometry ? { ...f.geometry } : null;
+                if (geom && geom.coordinates) {
+                    geom.coordinates = geom.coordinates.map(poly => 
+                        poly.map(pt => [
+                            Math.round(pt[0] * 1000000) / 1000000,
+                            Math.round(pt[1] * 1000000) / 1000000
+                        ])
+                    );
+                }
+                return { type: f.type, properties: f.properties, geometry: geom };
+            }) : [];
+
+            const str = JSON.stringify({ type: "FeatureCollection", features: sanitizedFeatures });
             const zip = new JSZip();
             zip.file("geo.json", str);
             return await zip.generateAsync({ type: "base64", compression: "DEFLATE", compressionOptions: { level: 9 } });
@@ -605,13 +619,11 @@
             }
         }
 
-        // VERIFICAÇÃO DE PERMISSÃO: ADMINISTRATIVO ORIGENS POSSUI MODO EDIÇÃO TOTAL
         async function checkUserAuthorization() {
             if (!currentUser) return;
 
             const userEmail = currentUser.email.toLowerCase();
             
-            // E-Mails Administrativos Master com Permissão Total de Edição (Adicionado administrativo@origens.agr.br)
             const adminEmails = [
                 "administrativo@origens.agr.br",
                 "tiagoritter@gmail.com", 
@@ -665,6 +677,7 @@
             initLeafletMap();
         }
 
+        // CARREGAMENTO DA NUVEM SUPORTANDO CHUNKS (FRAGMENTOS PARA SUPERAR O LIMITE DE 1MB)
         async function loadCloudData() {
             try {
                 const snapshot = await db.collection("farms").get();
@@ -674,8 +687,22 @@
                     const data = doc.data();
                     let parsedGeojson = { "type": "FeatureCollection", "features": [] };
 
-                    if (data.geojsonZip) {
-                        parsedGeojson = await decompressGeoJSON(data.geojsonZip);
+                    let fullZipStr = data.geojsonZip || '';
+
+                    // Se a fazenda foi dividida em chunks devido ao tamanho do arquivo
+                    if (data.isChunked && data.chunkCount > 0) {
+                        try {
+                            const chunksSnap = await db.collection("farms").doc(doc.id).collection("chunks").orderBy("index").get();
+                            let parts = [];
+                            chunksSnap.forEach(cDoc => parts.push(cDoc.data().content));
+                            fullZipStr = parts.join('');
+                        } catch(cErr) {
+                            console.error("Erro ao carregar chunks da fazenda:", cErr);
+                        }
+                    }
+
+                    if (fullZipStr) {
+                        parsedGeojson = await decompressGeoJSON(fullZipStr);
                     } else if (data.geojsonJson) {
                         try {
                             parsedGeojson = typeof data.geojsonJson === 'string' ? JSON.parse(data.geojsonJson) : data.geojsonJson;
@@ -955,7 +982,8 @@
                 producer: producer,
                 location: location, 
                 area: area, 
-                geojsonZip: compressedZip
+                geojsonZip: compressedZip,
+                isChunked: false
             };
 
             try {
@@ -1599,7 +1627,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAMENTO DE UPLOAD COM PRESERVAÇÃO E MESCLAGEM ACUMULATIVA DE SAFRAS
+        // PROCESSAMENTO DE UPLOAD COM SALVAMENTO EM FRAGMENTOS (CHUNKS) SE EXCEDER 1MB
         function processUploadedFiles() {
             if (currentUserRole !== 'admin') {
                 alert("Apenas o Administrador Master pode realizar importações de projetos.");
@@ -1677,27 +1705,54 @@
 
                 const compressedZip = await compressGeoJSON(baseGeoJSON);
 
-                const payloadToSave = {
-                    name: String(farmsDatabase[selectedFarmKey].name || ''),
-                    producer: String(farmsDatabase[selectedFarmKey].producer || ''),
-                    location: String(farmsDatabase[selectedFarmKey].location || ''),
-                    area: Number(farmsDatabase[selectedFarmKey].area || 0),
-                    geojsonZip: compressedZip
-                };
-
+                // LÓGICA ANTI-EXCESSO DE TAMANHO (CHUNK SPLIT DE 700KB)
+                const CHUNK_SIZE = 700000;
+                
                 try {
-                    await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
+                    if (compressedZip.length > CHUNK_SIZE) {
+                        const totalChunks = Math.ceil(compressedZip.length / CHUNK_SIZE);
+
+                        // Grava documento principal
+                        await db.collection("farms").doc(selectedFarmKey).set({
+                            name: String(farmsDatabase[selectedFarmKey].name || ''),
+                            producer: String(farmsDatabase[selectedFarmKey].producer || ''),
+                            location: String(farmsDatabase[selectedFarmKey].location || ''),
+                            area: Number(farmsDatabase[selectedFarmKey].area || 0),
+                            isChunked: true,
+                            chunkCount: totalChunks,
+                            geojsonZip: ''
+                        });
+
+                        // Grava partes em subcoleção
+                        for (let i = 0; i < totalChunks; i++) {
+                            const part = compressedZip.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                            await db.collection("farms").doc(selectedFarmKey).collection("chunks").doc(`chunk_${i}`).set({
+                                index: i,
+                                content: part
+                            });
+                        }
+                    } else {
+                        // Grava documento único se for menor de 700KB
+                        await db.collection("farms").doc(selectedFarmKey).set({
+                            name: String(farmsDatabase[selectedFarmKey].name || ''),
+                            producer: String(farmsDatabase[selectedFarmKey].producer || ''),
+                            location: String(farmsDatabase[selectedFarmKey].location || ''),
+                            area: Number(farmsDatabase[selectedFarmKey].area || 0),
+                            geojsonZip: compressedZip,
+                            isChunked: false
+                        });
+                    }
+
                     populateSafraSelector();
                     populateTalhaoSelector();
                     updateGISMap();
-                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas no histórico com sucesso!`);
+                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas na nuvem com sucesso!`);
                 } catch (err) {
                     console.error("Erro ao salvar no Firestore:", err);
                     alert("Erro ao salvar projeto na nuvem: " + err.message);
                 }
             };
 
-            // Se selecionou um novo ZIP, mescla com o mapa existente
             if (shpInput.files.length) {
                 const reader = new FileReader();
                 reader.onload = function (e) {
