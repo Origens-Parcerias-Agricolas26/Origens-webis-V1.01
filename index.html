@@ -456,6 +456,42 @@
             return Math.round(num * 10) / 10;
         }
 
+        // EXTRAÇÃO ROBUSTA DE ANO SAFRA (CAPTURA 4 DÍGITOS TIPO 2024, 2025, 2026)
+        function extractSafra(val) {
+            if (val === undefined || val === null || val === '') return null;
+            const str = String(val).trim();
+            const match = str.match(/\b(20\d{2})\b/);
+            if (match) return match[1];
+            return str;
+        }
+
+        // BUSCA O DADO DE PROFUNDIDADE COMPATÍVEL COM A SAFRA SELECIONADA
+        function getFeatureDepthData(feature, depthKey, selectedSafra) {
+            if (!feature || !feature.properties) return {};
+
+            if (selectedSafra && selectedSafra !== 'all') {
+                // 1. Verificar se existe registro de profundidade chaveado especificamente para essa safra (ex: d0_10_2026)
+                const safraKey = depthKey + '_' + selectedSafra;
+                if (feature.properties[safraKey]) {
+                    return feature.properties[safraKey];
+                }
+
+                // 2. Verificar se o registro padrão da profundidade pertence a essa safra
+                const defaultDepthData = feature.properties[depthKey];
+                if (defaultDepthData) {
+                    const rowSafra = extractSafra(defaultDepthData['Ano Safra'] || defaultDepthData['AnoSafra'] || defaultDepthData['Safra'] || defaultDepthData['ANO_SAFRA'] || feature.properties['Ano Safra'] || feature.properties['AnoSafra'] || feature.properties['Safra'] || feature.properties['ANO_SAFRA']);
+                    if (!rowSafra || rowSafra === selectedSafra) {
+                        return defaultDepthData;
+                    }
+                }
+
+                // Se pertence a outra safra diferente da selecionada, retorna objeto vazio (área sem amostragem para essa safra)
+                return {};
+            }
+
+            return feature.properties[depthKey] || {};
+        }
+
         async function compressGeoJSON(geojsonObj) {
             const str = JSON.stringify(geojsonObj);
             const zip = new JSZip();
@@ -697,7 +733,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (BUSCA EM DIFERENTES CHAVES DA MÁSCARA)
+        // POPULAR SELETOR DE ANO SAFRA
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -706,6 +742,7 @@
             const safraSelect = document.getElementById('sel-safra');
             if (!safraSelect) return;
             
+            const currentSelectedSafra = safraSelect.value;
             safraSelect.innerHTML = '<option value="all">Todas as Safras</option>';
 
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
@@ -714,54 +751,63 @@
 
                 currentGeoJSON.features.forEach(f => {
                     if (f.properties) {
-                        const directSafra = f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA'];
-                        if (directSafra !== undefined && directSafra !== null && directSafra !== '') {
-                            safrasSet.add(String(Math.round(directSafra)));
-                        }
-                        depths.forEach(d => {
-                            if (f.properties[d]) {
-                                const val = f.properties[d]['Ano Safra'] || f.properties[d]['AnoSafra'] || f.properties[d]['Safra'] || f.properties[d]['ANO_SAFRA'];
-                                if (val !== undefined && val !== null && val !== '') {
-                                    safrasSet.add(String(Math.round(val)));
+                        const directSafra = extractSafra(f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA']);
+                        if (directSafra) safrasSet.add(directSafra);
+
+                        Object.keys(f.properties).forEach(pKey => {
+                            depths.forEach(d => {
+                                if (pKey === d || pKey.startsWith(d + '_')) {
+                                    const obj = f.properties[pKey];
+                                    if (obj && typeof obj === 'object') {
+                                        const val = extractSafra(obj['Ano Safra'] || obj['AnoSafra'] || obj['Safra'] || obj['ANO_SAFRA']);
+                                        if (val) safrasSet.add(val);
+                                    }
                                 }
-                            }
+                            });
                         });
                     }
                 });
 
-                Array.from(safrasSet).sort().reverse().forEach(s => {
+                const sortedSafras = Array.from(safrasSet).sort().reverse();
+                sortedSafras.forEach(s => {
                     safraSelect.innerHTML += `<option value="${s}">Safra ${s}</option>`;
                 });
+
+                if (safrasSet.has(currentSelectedSafra)) {
+                    safraSelect.value = currentSelectedSafra;
+                }
             }
         }
 
+        // POPULAR SELETOR DE TALHÃO FILTRADO
         function populateTalhaoSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
 
             const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
             const talhaoSelect = document.getElementById('sel-talhao');
-            const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
-            const depthKey = document.getElementById('sel-depth') ? document.getElementById('sel-depth').value : 'd0_10';
-            
+            if (!talhaoSelect) return;
+
+            const currentSelectedTalhao = talhaoSelect.value;
             talhaoSelect.innerHTML = '<option value="all">Todos os Talhões</option>';
 
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
                 const talhoesSet = new Set();
-                
+                const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
+                const depthKey = document.getElementById('sel-depth') ? document.getElementById('sel-depth').value : 'd0_10';
+
                 currentGeoJSON.features.forEach(f => {
                     if (f.properties && f.properties.Talhao) {
                         let passSafra = true;
                         if (selectedSafra !== 'all') {
-                            let featureSafra = f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA'];
-                            if (!featureSafra && f.properties[depthKey]) {
-                                featureSafra = f.properties[depthKey]['Ano Safra'] || f.properties[depthKey]['AnoSafra'] || f.properties[depthKey]['Safra'] || f.properties[depthKey]['ANO_SAFRA'];
-                            }
-                            passSafra = (featureSafra !== undefined && featureSafra !== null && String(Math.round(featureSafra)) === selectedSafra);
+                            const depthData = getFeatureDepthData(f, depthKey, selectedSafra);
+                            const hasDataForSafra = Object.keys(depthData).length > 0;
+                            const directSafra = extractSafra(f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA']);
+                            passSafra = hasDataForSafra || (directSafra === selectedSafra);
                         }
 
                         if (passSafra) {
-                            talhoesSet.add(f.properties.Talhao);
+                            talhoesSet.add(String(f.properties.Talhao));
                         }
                     }
                 });
@@ -769,6 +815,12 @@
                 Array.from(talhoesSet).sort().forEach(t => {
                     talhaoSelect.innerHTML += `<option value="${t}">Talhão ${t}</option>`;
                 });
+
+                if (Array.from(talhoesSet).includes(currentSelectedTalhao)) {
+                    talhaoSelect.value = currentSelectedTalhao;
+                } else {
+                    talhaoSelect.value = 'all';
+                }
             }
         }
 
@@ -785,9 +837,6 @@
         }
 
         function changeActiveSafra() {
-            const talhaoSelect = document.getElementById('sel-talhao');
-            if (talhaoSelect) talhaoSelect.value = 'all';
-
             populateTalhaoSelector();
             updateGISMap();
         }
@@ -1099,6 +1148,7 @@
             }
         }
 
+        // DESENHAR CAMADA GEOJSON PRESERVANDO A GEOMETRIA COMPLETA
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1108,31 +1158,15 @@
 
             return L.geoJSON(currentGeoJSON, {
                 filter: function(feature) {
-                    let passTalhao = (selectedTalhao === 'all') || (feature.properties && String(feature.properties.Talhao) === selectedTalhao);
-                    
-                    let passSafra = true;
-                    if (selectedSafra !== 'all') {
-                        let featureSafra = feature.properties ? (feature.properties['Ano Safra'] || feature.properties['AnoSafra'] || feature.properties['Safra'] || feature.properties['ANO_SAFRA']) : null;
-                        
-                        if (!featureSafra && feature.properties && feature.properties[depthKey]) {
-                            featureSafra = feature.properties[depthKey]['Ano Safra'] || feature.properties[depthKey]['AnoSafra'] || feature.properties[depthKey]['Safra'] || feature.properties[depthKey]['ANO_SAFRA'];
-                        }
-
-                        if (featureSafra !== undefined && featureSafra !== null) {
-                            passSafra = String(Math.round(featureSafra)) === selectedSafra;
-                        } else {
-                            passSafra = false;
-                        }
-                    }
-
-                    return passTalhao && passSafra;
+                    if (selectedTalhao === 'all') return true;
+                    return feature.properties && String(feature.properties.Talhao) === selectedTalhao;
                 },
                 style: function(feature) {
-                    const depthData = feature.properties[depthKey] || {};
+                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafra);
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
 
-                    let color = '#94a3b8';
+                    let color = '#94a3b8'; // Sem Amostragem / Cinza Neutro
                     if (val !== null && val !== undefined && !isNaN(val)) {
                         const matchedRule = rules.find(r => val >= r.min && val <= r.max);
                         if (matchedRule) color = matchedRule.color;
@@ -1146,15 +1180,15 @@
                     };
                 },
                 onEachFeature: function(feature, layer) {
-                    const props = feature.properties;
-                    const depthData = props[depthKey] || {};
+                    const props = feature.properties || {};
+                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafra);
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
                     const displayVal = (val !== null && val !== undefined) ? val : 'N/A';
 
                     let popupContent = `
                         <div class="p-2">
-                            <span class="font-extrabold text-sm text-slate-900 block border-b pb-1">${props.Subs} (Talhão ${props.Talhao})</span>
+                            <span class="font-extrabold text-sm text-slate-900 block border-b pb-1">${props.Subs || 'Gleba'} (Talhão ${props.Talhao || 'N/A'})</span>
                             <span class="text-xs text-slate-600 block mt-1">Área: <b>${format1Decimal(props.Area)} ha</b></span>
                             <span class="text-xs text-slate-800 font-bold block mt-1">${param}: <span class="text-emerald-600">${displayVal}</span></span>
                         </div>
@@ -1163,9 +1197,9 @@
 
                     let labelContent = "";
                     if (showLabels && showValues) {
-                        labelContent = `${props.Subs}: ${displayVal}`;
+                        labelContent = `${props.Subs || ''}: ${displayVal}`;
                     } else if (showLabels) {
-                        labelContent = `${props.Subs}`;
+                        labelContent = `${props.Subs || ''}`;
                     } else if (showValues) {
                         labelContent = `${displayVal}`;
                     }
@@ -1289,15 +1323,6 @@
                 if (selectedTalhao !== 'all') {
                     filteredFeatures = filteredFeatures.filter(f => f.properties && String(f.properties.Talhao) === selectedTalhao);
                 }
-                if (selectedSafra !== 'all') {
-                    filteredFeatures = filteredFeatures.filter(f => {
-                        let featureSafra = f.properties ? (f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA']) : null;
-                        if (!featureSafra && f.properties && f.properties[depthConfig.key]) {
-                            featureSafra = f.properties[depthConfig.key]['Ano Safra'] || f.properties[depthConfig.key]['AnoSafra'] || f.properties[depthConfig.key]['Safra'] || f.properties[depthConfig.key]['ANO_SAFRA'];
-                        }
-                        return featureSafra !== undefined && featureSafra !== null && String(Math.round(featureSafra)) === selectedSafra;
-                    });
-                }
 
                 let allPts = [];
                 filteredFeatures.forEach(f => {
@@ -1313,7 +1338,7 @@
                     const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
 
                     filteredFeatures.forEach(f => {
-                        const depthData = f.properties[depthConfig.key] || {};
+                        const depthData = getFeatureDepthData(f, depthConfig.key, selectedSafra);
                         const rawVal = depthData[param];
                         const val = format1Decimal(rawVal);
 
@@ -1481,6 +1506,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
+        // PROCESSAR UPLOAD E SALVAR COMPACTADO NO FIRESTORE
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1517,14 +1543,26 @@
                                                     r[k] = format1Decimal(r[k]);
                                                 }
                                             });
-                                            dataMap[r.Subs] = r;
+                                            const sub = String(r.Subs).trim();
+                                            dataMap[sub] = dataMap[sub] || [];
+                                            dataMap[sub].push(r);
                                         } 
                                     });
 
                                     finalGeoJSON.features.forEach(f => {
-                                        const sub = f.properties ? f.properties.Subs : null;
+                                        const sub = f.properties ? String(f.properties.Subs).trim() : null;
                                         if (sub && dataMap[sub]) {
-                                            f.properties[depthKey] = dataMap[sub];
+                                            const rows = dataMap[sub];
+                                            // Armazena a última linha lida como padrão
+                                            f.properties[depthKey] = rows[rows.length - 1];
+                                            
+                                            // Armazena cada linha especificamente por safra
+                                            rows.forEach(r => {
+                                                const safraVal = extractSafra(r['Ano Safra'] || r['AnoSafra'] || r['Safra'] || r['ANO_SAFRA']);
+                                                if (safraVal) {
+                                                    f.properties[depthKey + '_' + safraVal] = r;
+                                                }
+                                            });
                                         }
                                     });
                                     resolve();
