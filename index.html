@@ -149,13 +149,6 @@
                                         <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
                                     </select>
                                 </div>
-
-                                <!-- SELETOR DE DATA PARA O SATÉLITE SENTINEL -->
-                                <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2">
-                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
-                                    <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
-                                    <span class="text-[9px] text-emerald-400 block mt-1 font-semibold">*Exibindo apenas contornos das subdivisões</span>
-                                </div>
                             </div>
 
                             <!-- FILTRO POR ANO SAFRA -->
@@ -1167,62 +1160,48 @@
             }
         }
 
-        // ALTERAÇÃO DINÂMICA DE IMAGENS DE SATÉLITE COM SUPORTE A DATAS E WMS ESRI SENTINEL
+        // CARREGAMENTO DE CAMADAS DE SATÉLITE GLOBAIS DE ALTA DISPONIBILIDADE
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
             const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
-            const satDateInput = document.getElementById('sel-sat-date');
-            const satDateBox = document.getElementById('box-sat-date');
-
-            if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
-                if (satDateBox) satDateBox.classList.remove('hidden');
-            } else {
-                if (satDateBox) satDateBox.classList.add('hidden');
-            }
-
-            const dateVal = satDateInput ? satDateInput.value : '2026-02-01';
 
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
 
             if (selectedType === 'sentinel_rgb') {
-                // WMS Oficial Esri Sentinel-2 (Natural Color RGB - Layer 0)
-                tileLayerLeft = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
-                    layers: '0',
-                    format: 'png',
-                    transparent: true,
-                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
-                    attribution: 'Sentinel-2 RGB &copy; Esri/Copernicus',
+                // Mosaico Global Sentinel-2 RGB Cor Real (Mundialis Services)
+                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'Sentinel2_10m_RGB',
+                    format: 'image/jpeg',
+                    transparent: false,
+                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
-                    layers: '0',
-                    format: 'png',
-                    transparent: true,
-                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
-                    attribution: 'Sentinel-2 RGB &copy; Esri/Copernicus',
+                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'Sentinel2_10m_RGB',
+                    format: 'image/jpeg',
+                    transparent: false,
+                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // WMS Oficial Esri Sentinel-2 (NDVI Vigor Vegetativo - Layer 2)
-                tileLayerLeft = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
-                    layers: '2',
-                    format: 'png',
-                    transparent: true,
-                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
-                    attribution: 'Sentinel-2 NDVI &copy; Esri/Copernicus',
+                // Mosaico Global Sentinel-2 NDVI Biomassa (Mundialis Services)
+                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'NDVI',
+                    format: 'image/png',
+                    transparent: false,
+                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
-                    layers: '2',
-                    format: 'png',
-                    transparent: true,
-                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
-                    attribution: 'Sentinel-2 NDVI &copy; Esri/Copernicus',
+                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'NDVI',
+                    format: 'image/png',
+                    transparent: false,
+                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis',
                     maxZoom: 18
                 }).addTo(mapRight);
 
@@ -1239,7 +1218,7 @@
                 }).addTo(mapRight);
             }
 
-            // Atualizar o estilo dos polígonos para mostrar Apenas Contornos quando em modo RGB ou NDVI
+            // Atualizar polígonos para transparente quando em modo RGB/NDVI
             updateGISMap();
         }
 
@@ -1428,7 +1407,6 @@
             }
         }
 
-        // DESENHAR CAMADA GEOJSON (COM MODO APENAS CONTORNO EM RGB/NDVI)
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1540,31 +1518,46 @@
 
             const legendTitle = document.getElementById('legend-title');
             const legendItems = document.getElementById('legend-items');
+            const selectedBasemap = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
 
-            if (mode === 'sidebyside') {
-                const textA = document.getElementById('sel-depth-a').value.replace('d', '').replace('_', '-');
-                const textB = document.getElementById('sel-depth-b').value.replace('d', '').replace('_', '-');
-                legendTitle.innerText = `${param} | Split: ${textA}cm vs ${textB}cm`;
+            if (selectedBasemap === 'sentinel_ndvi') {
+                legendTitle.innerText = `NDVI - Vigor da Vegetação`;
+                legendItems.innerHTML = `
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded border border-slate-300" style="background-color: #006837"></div><span>0.8 a 1.0 - Vegetação Densa</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded border border-slate-300" style="background-color: #31a354"></div><span>0.6 a 0.8 - Vigoroso</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded border border-slate-300" style="background-color: #78c679"></div><span>0.4 a 0.6 - Moderado</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded border border-slate-300" style="background-color: #fecc5c"></div><span>0.2 a 0.4 - Baixo / Palhada</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded border border-slate-300" style="background-color: #e31a1c"></div><span>< 0.2 - Solo Nu / Água</span></div>
+                `;
+            } else if (selectedBasemap === 'sentinel_rgb') {
+                legendTitle.innerText = `Sentinel-2 RGB (Cor Real)`;
+                legendItems.innerHTML = `<span class="text-slate-600 block text-xs">Exibindo Ortofoto Óptica Copernicus de alta resolução.</span>`;
             } else {
-                const depth = document.getElementById('sel-depth').value.replace('d', '').replace('_', '-');
-                legendTitle.innerText = `${param} (${depth})cm`;
+                if (mode === 'sidebyside') {
+                    const textA = document.getElementById('sel-depth-a').value.replace('d', '').replace('_', '-');
+                    const textB = document.getElementById('sel-depth-b').value.replace('d', '').replace('_', '-');
+                    legendTitle.innerText = `${param} | Split: ${textA}cm vs ${textB}cm`;
+                } else {
+                    const depth = document.getElementById('sel-depth').value.replace('d', '').replace('_', '-');
+                    legendTitle.innerText = `${param} (${depth})cm`;
+                }
+
+                let legendHTML = rules.map(r => `
+                    <div class="flex items-center gap-2">
+                        <div class="w-3.5 h-3.5 rounded border border-slate-300 shadow-sm" style="background-color: ${r.color}"></div>
+                        <span>${r.label}</span>
+                    </div>
+                `).join('');
+
+                legendHTML += `
+                    <div class="flex items-center gap-2 border-t pt-1 mt-1">
+                        <div class="w-3.5 h-3.5 rounded border border-slate-300 bg-slate-400"></div>
+                        <span>Sem Amostragem</span>
+                    </div>
+                `;
+
+                legendItems.innerHTML = legendHTML;
             }
-
-            let legendHTML = rules.map(r => `
-                <div class="flex items-center gap-2">
-                    <div class="w-3.5 h-3.5 rounded border border-slate-300 shadow-sm" style="background-color: ${r.color}"></div>
-                    <span>${r.label}</span>
-                </div>
-            `).join('');
-
-            legendHTML += `
-                <div class="flex items-center gap-2 border-t pt-1 mt-1">
-                    <div class="w-3.5 h-3.5 rounded border border-slate-300 bg-slate-400"></div>
-                    <span>Sem Amostragem</span>
-                </div>
-            `;
-
-            legendItems.innerHTML = legendHTML;
         }
 
         function toggleLayers() { updateGISMap(); }
