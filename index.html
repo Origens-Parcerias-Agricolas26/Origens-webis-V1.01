@@ -1152,8 +1152,64 @@
             }
         }
 
+        // REGRAS DE CLASSIFICAÇÃO ATUALIZADAS (QGIS PADRÃO ORIGENS)
         function getQGISRules(param) {
-            if (param === 'Argila') {
+            if (param === 'Ca') {
+                return [
+                    { min: 4.01, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - >4.0' },
+                    { min: 3.1, max: 4.0, color: '#FFF5AA', label: 'Nível 2 - 3.1 a 4.0' },
+                    { min: 2.6, max: 3.0, color: '#FFE16B', label: 'Nível 3 - 2.6 a 3.0' },
+                    { min: 2.1, max: 2.5, color: '#FFC83B', label: 'Nível 4 - 2.1 a 2.5' },
+                    { min: 1.6, max: 2.0, color: '#FF961F', label: 'Nível 5 - 1.6 a 2.0' },
+                    { min: 1.1, max: 1.5, color: '#E65D0F', label: 'Nível 6 - 1.1 a 1.5' },
+                    { min: 0.6, max: 1.0, color: '#C83700', label: 'Nível 7 - 0.6 a 1.0' },
+                    { min: 0, max: 0.59, color: '#802000', label: 'Nível 8 - <0.6' }
+                ];
+            } else if (param === 'Ca%') {
+                return [
+                    { min: 0, max: 20, color: '#802000', label: 'Nível 1 - <20' },
+                    { min: 21, max: 30, color: '#E65D0F', label: 'Nível 2 - 21 a 30' },
+                    { min: 31, max: 40, color: '#FF961F', label: 'Nível 3 - 31 a 40' },
+                    { min: 41, max: 50, color: '#FFC83B', label: 'Nível 4 - 41 a 50' },
+                    { min: 51, max: 60, color: '#FFF5AA', label: 'Nível 5 - 51 a 60' },
+                    { min: 60.1, max: Infinity, color: '#FFFFE0', label: 'Nível 6 - >60' }
+                ];
+            } else if (param === 'Mg') {
+                return [
+                    { min: 1.51, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - >1.5' },
+                    { min: 1.1, max: 1.5, color: '#FFE16B', label: 'Nível 2 - 1.1 a 1.5' },
+                    { min: 0.8, max: 1.0, color: '#FF961F', label: 'Nível 3 - 0.8 a 1.0' },
+                    { min: 0.5, max: 0.7, color: '#E65D0F', label: 'Nível 4 - 0.5 a 0.7' },
+                    { min: 0, max: 0.49, color: '#802000', label: 'Nível 5 - <0.5' }
+                ];
+            } else if (param === 'Mg%') {
+                return [
+                    { min: 0, max: 5, color: '#802000', label: 'Nível 1 - <5' },
+                    { min: 5.1, max: 10, color: '#E65D0F', label: 'Nível 2 - 5,1 a 10' },
+                    { min: 10.1, max: 15, color: '#FF961F', label: 'Nível 3 - 10,1 a 15' },
+                    { min: 15.1, max: 20, color: '#FFC83B', label: 'Nível 4 - 15,1 a 20' },
+                    { min: 20.1, max: 25, color: '#FFF5AA', label: 'Nível 5 - 20,1 a 25' },
+                    { min: 25.1, max: Infinity, color: '#FFFFE0', label: 'Nível 6 - >25' }
+                ];
+            } else if (param === 'K') {
+                return [
+                    { min: 100.1, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - >100' },
+                    { min: 81, max: 100, color: '#FFF5AA', label: 'Nível 2 - 81 a 100' },
+                    { min: 61, max: 80, color: '#FFC83B', label: 'Nível 3 - 61 a 80' },
+                    { min: 41, max: 60, color: '#FF961F', label: 'Nível 4 - 41 a 60' },
+                    { min: 20, max: 40, color: '#E65D0F', label: 'Nível 5 - 20 a 40' },
+                    { min: 0, max: 19.9, color: '#802000', label: 'Nível 6 - <20' }
+                ];
+            } else if (param === 'K%') {
+                return [
+                    { min: 0, max: 1, color: '#802000', label: 'Nível 1 - <1' },
+                    { min: 1.1, max: 2, color: '#E65D0F', label: 'Nível 2 - 1,1 a 2' },
+                    { min: 2.1, max: 3, color: '#FF961F', label: 'Nível 3 - 2,1 a 3' },
+                    { min: 3.1, max: 4, color: '#FFC83B', label: 'Nível 4 - 3,1 a 4' },
+                    { min: 4.1, max: 5, color: '#FFF5AA', label: 'Nível 5 - 4,1 a 5' },
+                    { min: 5.1, max: Infinity, color: '#FFFFE0', label: 'Nível 6 - >6' }
+                ];
+            } else if (param === 'Argila') {
                 return [
                     { min: 600, max: Infinity, color: '#102A83', label: '> 600 - Argilosa' },
                     { min: 551, max: 600, color: '#2B75E2', label: '551 a 600 - Argilosa' },
@@ -1408,7 +1464,6 @@
 
         function toggleLayers() { updateGISMap(); }
 
-        // EXPORTAÇÃO DE LAUDO PDF COM ESCALA PROPORCIONAL UNIFICADA (SEM ACHATAMENTO)
         function drawCanvasForParam(param, depthConfig, farmInfo, rules) {
             const canvas = document.getElementById('pdf-render-canvas');
             const ctx = canvas.getContext('2d');
@@ -1469,7 +1524,6 @@
 
                     const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
 
-                    // Ajuste de Escala Proporcional GIS (Corrige Fator de Latitude para Eliminar Achatamento)
                     const centerLat = (minY + maxY) / 2;
                     const cosScale = Math.cos(centerLat * Math.PI / 180);
                     const spanX = (maxX - minX) * cosScale || 0.0001;
