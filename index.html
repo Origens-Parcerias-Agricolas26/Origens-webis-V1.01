@@ -433,6 +433,26 @@
             return Math.round(num * 10) / 10;
         }
 
+        // FUNÇÕES AUXILIARES DE COMPRESSÃO / DESCOMPRESSÃO ZIP PARA O FIRESTORE
+        async function compressGeoJSON(geojsonObj) {
+            const str = JSON.stringify(geojsonObj);
+            const zip = new JSZip();
+            zip.file("geo.json", str);
+            return await zip.generateAsync({ type: "base64", compression: "DEFLATE", compressionOptions: { level: 9 } });
+        }
+
+        async function decompressGeoJSON(base64Zip) {
+            try {
+                const zip = new JSZip();
+                const loaded = await zip.loadAsync(base64Zip, { base64: true });
+                const jsonStr = await loaded.file("geo.json").async("string");
+                return JSON.parse(jsonStr);
+            } catch(e) {
+                console.error("Erro ao descompactar GeoJSON:", e);
+                return { "type": "FeatureCollection", "features": [] };
+            }
+        }
+
         async function loginWithGoogle() {
             const provider = new firebase.auth.GoogleAuthProvider();
             try {
@@ -493,15 +513,19 @@
             try {
                 const snapshot = await db.collection("farms").get();
                 farmsDatabase = {};
-                snapshot.forEach(doc => {
+
+                for (const doc of snapshot.docs) {
                     const data = doc.data();
                     let parsedGeojson = { "type": "FeatureCollection", "features": [] };
 
-                    if (data.geojsonJson) {
+                    if (data.geojsonZip) {
+                        // Suporte a GeoJSON comprimido com ZIP (Alta performance e sem limite de tamanho)
+                        parsedGeojson = await decompressGeoJSON(data.geojsonZip);
+                    } else if (data.geojsonJson) {
                         try {
                             parsedGeojson = typeof data.geojsonJson === 'string' ? JSON.parse(data.geojsonJson) : data.geojsonJson;
                         } catch(e) {
-                            console.error("Erro ao reconstituir GeoJSON:", e);
+                            console.error("Erro ao ler geojsonJson:", e);
                         }
                     }
 
@@ -511,7 +535,7 @@
                         area: data.area || 0,
                         geojson: parsedGeojson
                     };
-                });
+                }
 
                 const usersSnap = await db.collection("users").get();
                 usersDatabase = [];
@@ -661,7 +685,7 @@
             updateGISMap(); 
         }
 
-        // CADASTRAR FAZENDA HIGIENIZANDO O PAYLOAD COMPLETO DO FIRESTORE
+        // CADASTRAR FAZENDA COM COMPRESSÃO E SEM MATRIZES
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -680,11 +704,13 @@
             }
 
             const initialGeoJSON = { "type": "FeatureCollection", "features": [] };
+            const compressedZip = await compressGeoJSON(initialGeoJSON);
+
             const payloadToSave = { 
                 name: name, 
                 location: location, 
                 area: area, 
-                geojsonJson: JSON.stringify(initialGeoJSON)
+                geojsonZip: compressedZip
             };
 
             try {
@@ -1295,7 +1321,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAR UPLOAD E SALVAR NO FIRESTORE DE FORMA LIMPA SEM ENVIAR MATRIZES
+        // PROCESSAR UPLOAD E SALVAR COMPACTADO NO FIRESTORE
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1357,19 +1383,21 @@
 
                     farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
-                    // CONSTRUÇÃO ESTRITA E HIGIENIZADA DO DOCUMENTO
+                    // COMPRESSÃO ZIP EM MEMÓRIA DO GEOJSON PARA SUPORTAR SHAPEFILES GRANDES NO FIRESTORE
+                    const compressedZip = await compressGeoJSON(finalGeoJSON);
+
                     const payloadToSave = {
                         name: String(farmsDatabase[selectedFarmKey].name || ''),
                         location: String(farmsDatabase[selectedFarmKey].location || ''),
                         area: Number(farmsDatabase[selectedFarmKey].area || 0),
-                        geojsonJson: JSON.stringify(finalGeoJSON)
+                        geojsonZip: compressedZip
                     };
 
                     try {
                         await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
                         populateTalhaoSelector();
                         updateGISMap();
-                        alert(`Shapefile e planilhas processados e salvos com sucesso na nuvem!`);
+                        alert(`Shapefile e planilhas processados, compactados e salvos com sucesso na nuvem!`);
                     } catch (err) {
                         console.error("Erro ao salvar no Firestore:", err);
                         alert("Erro ao salvar projeto na nuvem: " + err.message);
