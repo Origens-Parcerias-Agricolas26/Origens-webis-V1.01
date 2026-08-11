@@ -153,11 +153,24 @@
                                 </select>
                             </div>
 
-                            <!-- UPLOAD FERRAMENTA ADMIN -->
+                            <!-- UPLOAD FERRAMENTA ADMIN COM DEDICAÇÃO DE SAFRA -->
                             <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3">
                                 <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
+                                
+                                <!-- SELETOR DE SAFRA PARA O UPLOAD -->
                                 <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Perímetro e Subdivisões (.zip)</label>
+                                    <label class="block text-[11px] font-bold text-amber-900 mb-1">Ano Safra das Planilhas</label>
+                                    <select id="upload-safra-year" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-extrabold text-xs text-slate-900">
+                                        <option value="2026" selected>Safra 2026</option>
+                                        <option value="2025">Safra 2025</option>
+                                        <option value="2024">Safra 2024</option>
+                                        <option value="2027">Safra 2027</option>
+                                        <option value="auto">Detectar da Planilha</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Perímetro / Subdivisões (.zip - opcional se já existir)</label>
                                     <input type="file" id="file-shp" accept=".zip" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
                                 </div>
                                 <div>
@@ -454,11 +467,14 @@
             return Math.round(num * 10) / 10;
         }
 
-        // EXTRATOR UNIVERSAL DE ANO SAFRA (VARREDURA POR QUALQUER NOME DE COLUNA)
         function extractSafra(rowObj) {
-            if (!rowObj || typeof rowObj !== 'object') return null;
+            if (!rowObj) return null;
+            if (typeof rowObj !== 'object') {
+                const str = String(rowObj).trim();
+                const match = str.match(/\b(20\d{2})\b/);
+                return match ? match[1] : str;
+            }
             
-            // Procurar em todas as chaves possíveis da linha do Excel
             for (const key of Object.keys(rowObj)) {
                 const kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
                 if (kLower.includes('safra') || kLower.includes('anosafra') || kLower === 'ano' || kLower === 'as') {
@@ -469,6 +485,11 @@
                 }
             }
             return null;
+        }
+
+        function cleanString(str) {
+            if (!str) return '';
+            return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
         }
 
         function sanitizeAndCalculateSoilData(row) {
@@ -514,13 +535,12 @@
             return r;
         }
 
-        // BUSCA MULTI-SAFRA ROBUSTA
+        // BUSCA MULTI-SAFRA DE PROFUNDIDADE COM RESGATES MÚLTIPLOS
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
             const props = feature.properties;
 
-            // 1. Dicionário safras_historico
             if (props.safras_historico && typeof props.safras_historico === 'object') {
                 if (selectedSafra && selectedSafra !== 'all') {
                     if (props.safras_historico[selectedSafra] && props.safras_historico[selectedSafra][depthKey]) {
@@ -536,7 +556,6 @@
                 }
             }
 
-            // 2. Chave combinada direta (ex: d0_10_2026)
             if (selectedSafra && selectedSafra !== 'all') {
                 const safraKey = depthKey + '_' + selectedSafra;
                 if (props[safraKey]) return props[safraKey];
@@ -673,7 +692,7 @@
         async function logout() {
             await auth.signOut();
             document.getElementById('saas-section').classList.add('hidden');
-            document.getElementById('landing-section').classList.add('hidden');
+            document.getElementById('landing-section').classList.remove('hidden');
         }
 
         function switchTab(tab) {
@@ -795,7 +814,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (VARREDURA PROFUNDA)
+        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -815,8 +834,10 @@
                         if (f.properties.safras_historico && typeof f.properties.safras_historico === 'object') {
                             Object.keys(f.properties.safras_historico).forEach(s => safrasSet.add(s));
                         }
+                        if (f.properties.safras && typeof f.properties.safras === 'object') {
+                            Object.keys(f.properties.safras).forEach(s => safrasSet.add(s));
+                        }
 
-                        // Varrer todas as chaves de profundidade e sub-objetos em busca de safras
                         Object.keys(f.properties).forEach(pKey => {
                             const valObj = f.properties[pKey];
                             const detectedSafra = extractSafra(valObj);
@@ -1197,7 +1218,6 @@
             }
         }
 
-        // DESENHAR CAMADA GEOJSON COM COMPATIBILIDADE MULTI-SAFRA
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1215,7 +1235,7 @@
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
 
-                    let color = '#94a3b8'; // Sem Amostragem
+                    let color = '#94a3b8';
                     if (val !== null && val !== undefined && !isNaN(val)) {
                         const matchedRule = rules.find(r => val >= r.min && val <= r.max);
                         if (matchedRule) color = matchedRule.color;
@@ -1555,109 +1575,120 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA MULTI-SAFRA DE ALTA PRECISÃO PARA PLANILHAS EXCEL
+        // PROCESSAMENTO DE UPLOAD COM DEDICAÇÃO DE SAFRA E Opcionalidade DO SHAPEFILE
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
+            const uploadSafraYear = document.getElementById('upload-safra-year').value;
             const shpInput = document.getElementById('file-shp');
             const excel010 = document.getElementById('file-excel-0-10');
             const excel1020 = document.getElementById('file-excel-10-20');
             const excel2040 = document.getElementById('file-excel-20-40');
 
-            if (!shpInput.files.length) {
-                alert('Por favor, selecione o arquivo Shapefile em .ZIP!');
+            if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) {
+                alert('Por favor, selecione uma fazenda ativa!');
                 return;
             }
 
-            const file = shpInput.files[0];
-            const reader = new FileReader();
+            const currentFarm = farmsDatabase[selectedFarmKey];
 
-            reader.onload = function (e) {
-                shp(e.target.result).then(async function (geojson) {
-                    let finalGeoJSON = Array.isArray(geojson) ? geojson[0] : geojson;
+            const runProcessGeoJSON = async (finalGeoJSON) => {
+                const parseExcel = (fileInput, fallbackDepthKey) => {
+                    return new Promise((resolve) => {
+                        if (fileInput.files.length) {
+                            const exReader = new FileReader();
+                            exReader.onload = function(exEvt) {
+                                const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
+                                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                                const data = XLSX.utils.sheet_to_json(sheet);
+                                
+                                data.forEach(r => {
+                                    let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba || r.GLEBA || r.Original || r.ORIGINAL;
+                                    if (rawSub) {
+                                        const subClean = cleanString(rawSub);
+                                        const cleanRow = sanitizeAndCalculateSoilData(r);
+                                        
+                                        // Determina o ano safra: usa o do seletor superior ou detecta do Excel
+                                        let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
+                                        if (!safraVal) safraVal = '2026';
 
-                    const parseExcel = (fileInput, fallbackDepthKey) => {
-                        return new Promise((resolve) => {
-                            if (fileInput.files.length) {
-                                const exReader = new FileReader();
-                                exReader.onload = function(exEvt) {
-                                    const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
-                                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                                    const data = XLSX.utils.sheet_to_json(sheet);
-                                    
-                                    data.forEach(r => {
-                                        // Tenta identificar o identificador da gleba/subdivisão em qualquer coluna possível
-                                        let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba || r.GLEBA || r.Original || r.ORIGINAL;
-                                        if (rawSub) {
-                                            const subClean = String(rawSub).trim().toLowerCase();
-                                            const cleanRow = sanitizeAndCalculateSoilData(r);
-                                            const safraVal = extractSafra(r);
+                                        let targetDepthKey = fallbackDepthKey;
+                                        const profVal = String(r.Prof || r.Profundidade || r.PROF || '').trim();
+                                        if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
+                                        else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
+                                        else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
 
-                                            let targetDepthKey = fallbackDepthKey;
-                                            const profVal = String(r.Prof || r.Profundidade || r.PROF || '').trim();
-                                            if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
-                                            else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
-                                            else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
-
-                                            finalGeoJSON.features.forEach(f => {
-                                                if (f.properties) {
-                                                    let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba || f.properties.Original;
-                                                    if (fSub && String(fSub).trim().toLowerCase() === subClean) {
-                                                        f.properties.safras_historico = f.properties.safras_historico || {};
-
-                                                        if (safraVal) {
-                                                            f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
-                                                            f.properties.safras_historico[safraVal][targetDepthKey] = cleanRow;
-                                                        }
-                                                        
-                                                        // Salva também no padrão para fallback
-                                                        f.properties[targetDepthKey] = cleanRow;
-                                                    }
+                                        finalGeoJSON.features.forEach(f => {
+                                            if (f.properties) {
+                                                let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba || f.properties.Original;
+                                                if (fSub && cleanString(fSub) === subClean) {
+                                                    f.properties.safras_historico = f.properties.safras_historico || {};
+                                                    f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
+                                                    f.properties.safras_historico[safraVal][targetDepthKey] = cleanRow;
+                                                    
+                                                    f.properties[targetDepthKey + '_' + safraVal] = cleanRow;
+                                                    f.properties[targetDepthKey] = cleanRow;
                                                 }
-                                            });
-                                        }
-                                    });
-                                    resolve();
-                                };
-                                exReader.readAsBinaryString(fileInput.files[0]);
-                            } else {
+                                            }
+                                        });
+                                    }
+                                });
                                 resolve();
-                            }
-                        });
-                    };
+                            };
+                            exReader.readAsBinaryString(fileInput.files[0]);
+                        } else {
+                            resolve();
+                        }
+                    });
+                };
 
-                    await parseExcel(excel010, 'd0_10');
-                    await parseExcel(excel1020, 'd10_20');
-                    await parseExcel(excel2040, 'd20_40');
+                await parseExcel(excel010, 'd0_10');
+                await parseExcel(excel1020, 'd10_20');
+                await parseExcel(excel2040, 'd20_40');
 
-                    farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
+                farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
-                    const compressedZip = await compressGeoJSON(finalGeoJSON);
+                const compressedZip = await compressGeoJSON(finalGeoJSON);
 
-                    const payloadToSave = {
-                        name: String(farmsDatabase[selectedFarmKey].name || ''),
-                        producer: String(farmsDatabase[selectedFarmKey].producer || ''),
-                        location: String(farmsDatabase[selectedFarmKey].location || ''),
-                        area: Number(farmsDatabase[selectedFarmKey].area || 0),
-                        geojsonZip: compressedZip
-                    };
+                const payloadToSave = {
+                    name: String(farmsDatabase[selectedFarmKey].name || ''),
+                    producer: String(farmsDatabase[selectedFarmKey].producer || ''),
+                    location: String(farmsDatabase[selectedFarmKey].location || ''),
+                    area: Number(farmsDatabase[selectedFarmKey].area || 0),
+                    geojsonZip: compressedZip
+                };
 
-                    try {
-                        await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
-                        populateSafraSelector();
-                        populateTalhaoSelector();
-                        updateGISMap();
-                        alert(`Shapefile e planilhas processados, compactados e salvos com sucesso na nuvem!`);
-                    } catch (err) {
-                        console.error("Erro ao salvar no Firestore:", err);
-                        alert("Erro ao salvar projeto na nuvem: " + err.message);
-                    }
-                }).catch(err => {
-                    console.error("Erro na leitura do ZIP:", err);
-                    alert('Erro ao carregar o .zip. Verifique se o ZIP contém os arquivos .shp, .dbf, .shx e .prj.');
-                });
+                try {
+                    await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
+                    populateSafraSelector();
+                    populateTalhaoSelector();
+                    updateGISMap();
+                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} processadas e salvas com sucesso!`);
+                } catch (err) {
+                    console.error("Erro ao salvar no Firestore:", err);
+                    alert("Erro ao salvar projeto na nuvem: " + err.message);
+                }
             };
 
-            reader.readAsArrayBuffer(file);
+            // Se o usuário selecionou um arquivo ZIP com Shapefile
+            if (shpInput.files.length) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    shp(e.target.result).then(function (geojson) {
+                        let finalGeoJSON = Array.isArray(geojson) ? geojson[0] : geojson;
+                        runProcessGeoJSON(finalGeoJSON);
+                    }).catch(err => {
+                        alert('Erro ao carregar o .zip. Verifique se o ZIP contém os arquivos .shp, .dbf, .shx e .prj.');
+                    });
+                };
+                reader.readAsArrayBuffer(shpInput.files[0]);
+            } else {
+                // Se não selecionou ZIP, usa a geometria que já estava gravada na fazenda
+                if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
+                    runProcessGeoJSON(currentFarm.geojson);
+                } else {
+                    alert('Por favor, selecione ao menos o arquivo Shapefile (.zip) para cadastrar a geometria dos talhões!');
+                }
+            }
         }
     </script>
 </body>
