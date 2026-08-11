@@ -503,14 +503,12 @@
                         } catch(e) {
                             console.error("Erro ao reconstituir GeoJSON:", e);
                         }
-                    } else if (data.geojson) {
-                        parsedGeojson = data.geojson;
                     }
 
                     farmsDatabase[doc.id] = {
-                        name: data.name,
-                        location: data.location,
-                        area: data.area,
+                        name: data.name || '',
+                        location: data.location || '',
+                        area: data.area || 0,
                         geojson: parsedGeojson
                     };
                 });
@@ -663,7 +661,7 @@
             updateGISMap(); 
         }
 
-        // CADASTRAR FAZENDA LIMPANDO DADOS COMPATÍVEIS COM FIRESTORE
+        // CADASTRAR FAZENDA HIGIENIZANDO O PAYLOAD COMPLETO DO FIRESTORE
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -686,7 +684,7 @@
                 name: name, 
                 location: location, 
                 area: area, 
-                geojsonJson: JSON.stringify(initialGeoJSON) 
+                geojsonJson: JSON.stringify(initialGeoJSON)
             };
 
             try {
@@ -1297,6 +1295,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
+        // PROCESSAR UPLOAD E SALVAR NO FIRESTORE DE FORMA LIMPA SEM ENVIAR MATRIZES
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1358,10 +1357,11 @@
 
                     farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
+                    // CONSTRUÇÃO ESTRITA E HIGIENIZADA DO DOCUMENTO
                     const payloadToSave = {
-                        name: farmsDatabase[selectedFarmKey].name,
-                        location: farmsDatabase[selectedFarmKey].location,
-                        area: farmsDatabase[selectedFarmKey].area,
+                        name: String(farmsDatabase[selectedFarmKey].name || ''),
+                        location: String(farmsDatabase[selectedFarmKey].location || ''),
+                        area: Number(farmsDatabase[selectedFarmKey].area || 0),
                         geojsonJson: JSON.stringify(finalGeoJSON)
                     };
 
