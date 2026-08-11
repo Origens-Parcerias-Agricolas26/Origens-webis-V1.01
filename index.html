@@ -454,12 +454,19 @@
             return Math.round(num * 10) / 10;
         }
 
+        // EXTRAI ANO SAFRA LIMPO (EX: 2026 DE "2026.0" OU "SAFRA 2026")
         function extractSafra(val) {
             if (val === undefined || val === null || val === '') return null;
             const str = String(val).trim();
             const match = str.match(/\b(20\d{2})\b/);
             if (match) return match[1];
             return str;
+        }
+
+        // LIMPEZA FLEXÍVEL DE TEXTO (REMOVE ESPAÇOS E MAIÚSCULAS)
+        function cleanString(str) {
+            if (!str) return '';
+            return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
         }
 
         function sanitizeAndCalculateSoilData(row) {
@@ -505,13 +512,13 @@
             return r;
         }
 
-        // BUSCA MULTI-SAFRA DE PROFUNDIDADE COM VARREDURA HISTÓRICA COMPLETA
+        // BUSCA UNIVERSAL E TOLERANTE DE DADOS POR SAFRA
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
             const props = feature.properties;
 
-            // 1. Procurar no Dicionário safras_historico
+            // 1. Dicionário de safras_historico
             if (props.safras_historico && typeof props.safras_historico === 'object') {
                 if (selectedSafra && selectedSafra !== 'all') {
                     if (props.safras_historico[selectedSafra] && props.safras_historico[selectedSafra][depthKey]) {
@@ -527,7 +534,7 @@
                 }
             }
 
-            // 2. Procurar no Dicionário safras antigo
+            // 2. Dicionário de safras tradicional
             if (props.safras && typeof props.safras === 'object') {
                 if (selectedSafra && selectedSafra !== 'all') {
                     if (props.safras[selectedSafra] && props.safras[selectedSafra][depthKey]) {
@@ -543,7 +550,7 @@
                 }
             }
 
-            // 3. Procurar por chaves diretas (ex: d0_10_2026)
+            // 3. Chave combinada direta (ex: d0_10_2026)
             if (selectedSafra && selectedSafra !== 'all') {
                 const safraKey = depthKey + '_' + selectedSafra;
                 if (props[safraKey]) return props[safraKey];
@@ -802,7 +809,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA
+        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -1205,7 +1212,7 @@
             }
         }
 
-        // DESENHAR CAMADA GEOJSON COM SUPORTE A MÚLTIPLAS SAFRAS
+        // DESENHAR CAMADA GEOJSON COM SUPORTE COMPLETO A MÚLTIPLAS SAFRAS
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1223,7 +1230,7 @@
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
 
-                    let color = '#94a3b8'; // Sem Amostragem / Cinza
+                    let color = '#94a3b8'; // Sem Amostragem
                     if (val !== null && val !== undefined && !isNaN(val)) {
                         const matchedRule = rules.find(r => val >= r.min && val <= r.max);
                         if (matchedRule) color = matchedRule.color;
@@ -1563,7 +1570,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA E ARMAZENAMENTO MULTI-SAFRA DE PLANILHAS
+        // LEITURA E VÍNCULO MULTI-SAFRA DE PLANILHAS (CRUZAMENTO FLEXÍVEL DE ATRIBUTOS)
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1594,38 +1601,42 @@
                                     
                                     const dataMap = {};
                                     data.forEach(r => { 
-                                        if(r.Subs) {
-                                            const sub = String(r.Subs).trim();
+                                        let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba;
+                                        if (rawSub) {
+                                            const keyClean = cleanString(rawSub);
                                             const cleanRow = sanitizeAndCalculateSoilData(r);
-                                            dataMap[sub] = dataMap[sub] || [];
-                                            dataMap[sub].push(cleanRow);
+                                            dataMap[keyClean] = dataMap[keyClean] || [];
+                                            dataMap[keyClean].push(cleanRow);
                                         } 
                                     });
 
                                     finalGeoJSON.features.forEach(f => {
-                                        const sub = f.properties ? String(f.properties.Subs).trim() : null;
-                                        if (sub && dataMap[sub]) {
-                                            const rows = dataMap[sub];
-                                            
-                                            f.properties.safras_historico = f.properties.safras_historico || {};
+                                        if (f.properties) {
+                                            let featureSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba;
+                                            const keyClean = cleanString(featureSub);
 
-                                            rows.forEach(r => {
-                                                const safraVal = extractSafra(r['Ano Safra'] || r['AnoSafra'] || r['Safra'] || r['ANO_SAFRA'] || r['Ano'] || r['AS']);
-                                                
-                                                let targetDepthKey = fallbackDepthKey;
-                                                const profVal = String(r.Prof || r.Profundidade || '').trim();
-                                                if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
-                                                else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
-                                                else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
+                                            if (keyClean && dataMap[keyClean]) {
+                                                const rows = dataMap[keyClean];
+                                                f.properties.safras_historico = f.properties.safras_historico || {};
 
-                                                if (safraVal) {
-                                                    f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
-                                                    f.properties.safras_historico[safraVal][targetDepthKey] = r;
-                                                    f.properties[targetDepthKey + '_' + safraVal] = r;
-                                                }
-                                                
-                                                f.properties[targetDepthKey] = r;
-                                            });
+                                                rows.forEach(r => {
+                                                    const safraVal = extractSafra(r['Ano Safra'] || r['AnoSafra'] || r['Safra'] || r['ANO_SAFRA'] || r['Ano'] || r['AS']);
+                                                    
+                                                    let targetDepthKey = fallbackDepthKey;
+                                                    const profVal = String(r.Prof || r.Profundidade || '').trim();
+                                                    if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
+                                                    else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
+                                                    else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
+
+                                                    if (safraVal) {
+                                                        f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
+                                                        f.properties.safras_historico[safraVal][targetDepthKey] = r;
+                                                        f.properties[targetDepthKey + '_' + safraVal] = r;
+                                                    }
+                                                    
+                                                    f.properties[targetDepthKey] = r;
+                                                });
+                                            }
                                         }
                                     });
                                     resolve();
