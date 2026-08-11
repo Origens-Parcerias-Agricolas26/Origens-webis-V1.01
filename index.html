@@ -138,6 +138,16 @@
                                 </select>
                             </div>
 
+                            <!-- IMAGENS DE SATÉLITE (RGB / NDVI / ESRI) -->
+                            <div class="bg-slate-900 text-white p-3 rounded-xl border border-slate-800 space-y-2">
+                                <span class="text-[11px] font-extrabold uppercase text-emerald-400 block"><i class="fa-solid fa-satellite text-xs mr-1"></i>Imagem de Fundo (Satélite)</span>
+                                <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
+                                    <option value="esri" selected>Satélite HD Padrão (Esri World Imagery)</option>
+                                    <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
+                                    <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
+                                </select>
+                            </div>
+
                             <!-- FILTRO POR ANO SAFRA -->
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra</label>
@@ -451,6 +461,8 @@
         let mapRight = null;
         let geojsonLayerLeft = null;
         let geojsonLayerRight = null;
+        let tileLayerLeft = null;
+        let tileLayerRight = null;
         let currentUser = null;
         let currentUserRole = "client";
         let currentUserAllowedFarms = ["all"];
@@ -1116,16 +1128,9 @@
         function initLeafletMap() {
             if (!mapLeft) {
                 mapLeft = L.map('map-left').setView([-12.592, -58.012], 13);
-                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Origens Parcerias Agrícolas &copy; Esri',
-                    maxZoom: 18
-                }).addTo(mapLeft);
-
                 mapRight = L.map('map-right', { zoomControl: false }).setView([-12.592, -58.012], 13);
-                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Esri',
-                    maxZoom: 18
-                }).addTo(mapRight);
+
+                changeBasemap();
 
                 mapLeft.on('move', function() {
                     if (isSyncing) return;
@@ -1152,7 +1157,65 @@
             }
         }
 
-        // REGRAS DE CLASSIFICAÇÃO ATUALIZADAS (QGIS PADRÃO ORIGENS - ENXOFRE INCLUÍDO)
+        // ALTERAÇÃO DINÂMICA DE IMAGENS DE SATÉLITE (ESRI / SENTINEL-2 RGB / SENTINEL-2 NDVI)
+        function changeBasemap() {
+            if (!mapLeft || !mapRight) return;
+
+            const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
+
+            if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
+            if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
+
+            if (selectedType === 'sentinel_rgb') {
+                // WMS Público Sentinel-2 RGB (Mundialis Services)
+                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'Sentinel2_10m_RGB',
+                    format: 'image/jpeg',
+                    transparent: true,
+                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis WMS',
+                    maxZoom: 18
+                }).addTo(mapLeft);
+
+                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'Sentinel2_10m_RGB',
+                    format: 'image/jpeg',
+                    transparent: true,
+                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis WMS',
+                    maxZoom: 18
+                }).addTo(mapRight);
+
+            } else if (selectedType === 'sentinel_ndvi') {
+                // WMS Público Sentinel-2 NDVI (Mundialis Services)
+                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis WMS',
+                    maxZoom: 18
+                }).addTo(mapLeft);
+
+                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
+                    layers: 'NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis WMS',
+                    maxZoom: 18
+                }).addTo(mapRight);
+
+            } else {
+                // Satélite ESRI World Imagery HD
+                tileLayerLeft = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Origens Parcerias Agrícolas &copy; Esri',
+                    maxZoom: 18
+                }).addTo(mapLeft);
+
+                tileLayerRight = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Esri',
+                    maxZoom: 18
+                }).addTo(mapRight);
+            }
+        }
+
         function getQGISRules(param) {
             if (param === 'S') {
                 return [
@@ -1837,7 +1900,7 @@
                     populateSafraSelector();
                     populateTalhaoSelector();
                     updateGISMap();
-                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas no histórico com sucesso!`);
+                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas na nuvem com sucesso!`);
                 } catch (err) {
                     console.error("Erro ao salvar no Firestore:", err);
                     alert("Erro ao salvar projeto na nuvem: " + err.message);
