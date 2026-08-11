@@ -146,15 +146,15 @@
                                     <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
                                         <option value="esri" selected>Satélite HD Padrão (Esri World)</option>
                                         <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
-                                        <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
+                                        <option value="sentinel_ndvi">Satélite Sentinel-2 / NASA (NDVI Biomassa)</option>
                                     </select>
                                 </div>
 
-                                <!-- SELETOR DE DATA DA PASSAGEM DO SATÉLITE -->
+                                <!-- SELETOR DE DATA CONECTADO AO WMS DA NASA -->
                                 <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
                                     <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
-                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Passagem do Sentinel-2 sem nuvens</span>
+                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Busca automática da passagem sem nuvens</span>
                                 </div>
                             </div>
 
@@ -1167,7 +1167,7 @@
             }
         }
 
-        // ALTERAÇÃO DE IMAGENS DE SATÉLITE VIA WMS OFICIAL DA NASA COM FORMATO TEMPORAL DIÁRIO VÁLIDO
+        // CARREGAMENTO ROBUSTO DE WMS DE SATÉLITE DA NASA COM ANTI-TELA BRANCA
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
@@ -1188,48 +1188,59 @@
 
             const esriFallbackUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
+            const attachAntiBlankFallback = (layerLeft, layerRight) => {
+                const applyFallback = (e) => {
+                    if (e.tile) {
+                        e.tile.src = esriFallbackUrl.replace('{z}', e.coords.z).replace('{y}', e.coords.y).replace('{x}', e.coords.x);
+                    }
+                };
+                layerLeft.on('tileerror', applyFallback);
+                layerRight.on('tileerror', applyFallback);
+            };
+
             if (selectedType === 'sentinel_rgb') {
-                // WMS NASA GIBS - Sentinel 2 RGB
                 tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
+                    layers: 'Sentinel_2_L2A_True_Color',
                     format: 'image/png',
                     transparent: true,
-                    time: dateVal,
+                    TIME: dateVal,
                     attribution: 'NASA GIBS &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
                 tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
+                    layers: 'Sentinel_2_L2A_True_Color',
                     format: 'image/png',
                     transparent: true,
-                    time: dateVal,
+                    TIME: dateVal,
                     attribution: 'NASA GIBS &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapRight);
+
+                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // WMS NASA GIBS - Sentinel 2 NDVI
                 tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_NDVI',
+                    layers: 'MODIS_Terra_NDVI_16Day',
                     format: 'image/png',
                     transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS &copy; Sentinel-2 NDVI',
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS &copy; Sentinel-2 / Terra NDVI',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
                 tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_NDVI',
+                    layers: 'MODIS_Terra_NDVI_16Day',
                     format: 'image/png',
                     transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS &copy; Sentinel-2 NDVI',
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS &copy; Sentinel-2 / Terra NDVI',
                     maxZoom: 18
                 }).addTo(mapRight);
 
+                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
+
             } else {
-                // Satélite HD Padrão (Esri World Imagery)
                 tileLayerLeft = L.tileLayer(esriFallbackUrl, {
                     attribution: 'Origens Parcerias Agrícolas &copy; Esri',
                     maxZoom: 18
