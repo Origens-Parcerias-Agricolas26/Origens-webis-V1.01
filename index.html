@@ -467,7 +467,7 @@
             return Math.round(num * 10) / 10;
         }
 
-        // EXTRATOR ESTRITO DE ANO SAFRA (SOMENTE ANOS VÁLIDOS DE 4 DÍGITOS)
+        // EXTRATOR ESTRITO DE ANO SAFRA
         function extractSafra(rowObj) {
             if (!rowObj) return null;
             if (typeof rowObj !== 'object') {
@@ -478,7 +478,6 @@
             
             for (const key of Object.keys(rowObj)) {
                 const kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-                // Ignorar colunas de identificação de glebas/subdivisões
                 if (kLower.includes('subs') || kLower.includes('orig') || kLower.includes('gleba') || kLower.includes('talhao')) {
                     continue;
                 }
@@ -540,7 +539,7 @@
             return r;
         }
 
-        // BUSCA MULTI-SAFRA ROBUSTA E LIMPA
+        // BUSCA MULTI-SAFRA
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
@@ -819,7 +818,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (FILTRANDO RIGOROSAMENTE APENAS ANOS VÁLIDOS)
+        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -1576,7 +1575,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAMENTO DE UPLOAD COM DEDICAÇÃO DE SAFRA E Opcionalidade DO SHAPEFILE
+        // PROCESSAMENTO DE UPLOAD COM PRESERVAÇÃO DE SAFRAS ANTERIORES NO FIRESTORE
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const uploadSafraYear = document.getElementById('upload-safra-year').value;
@@ -1592,7 +1591,7 @@
 
             const currentFarm = farmsDatabase[selectedFarmKey];
 
-            const runProcessGeoJSON = async (finalGeoJSON) => {
+            const runProcessGeoJSON = async (baseGeoJSON) => {
                 const parseExcel = (fileInput, fallbackDepthKey) => {
                     return new Promise((resolve) => {
                         if (fileInput.files.length) {
@@ -1608,7 +1607,6 @@
                                         const subClean = cleanString(rawSub);
                                         const cleanRow = sanitizeAndCalculateSoilData(r);
                                         
-                                        // Determina a safra: seletor explícito do upload ou extre do registro
                                         let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
                                         if (!safraVal) safraVal = '2026';
 
@@ -1618,7 +1616,7 @@
                                         else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
                                         else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
 
-                                        finalGeoJSON.features.forEach(f => {
+                                        baseGeoJSON.features.forEach(f => {
                                             if (f.properties) {
                                                 let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba || f.properties.Original;
                                                 if (fSub && cleanString(fSub) === subClean) {
@@ -1646,9 +1644,9 @@
                 await parseExcel(excel1020, 'd10_20');
                 await parseExcel(excel2040, 'd20_40');
 
-                farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
+                farmsDatabase[selectedFarmKey].geojson = baseGeoJSON;
 
-                const compressedZip = await compressGeoJSON(finalGeoJSON);
+                const compressedZip = await compressGeoJSON(baseGeoJSON);
 
                 const payloadToSave = {
                     name: String(farmsDatabase[selectedFarmKey].name || ''),
@@ -1663,18 +1661,36 @@
                     populateSafraSelector();
                     populateTalhaoSelector();
                     updateGISMap();
-                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} processadas e salvas com sucesso!`);
+                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas no histórico com sucesso!`);
                 } catch (err) {
                     console.error("Erro ao salvar no Firestore:", err);
                     alert("Erro ao salvar projeto na nuvem: " + err.message);
                 }
             };
 
+            // Se o usuário selecionou um arquivo ZIP novo
             if (shpInput.files.length) {
                 const reader = new FileReader();
                 reader.onload = function (e) {
-                    shp(e.target.result).then(function (geojson) {
-                        let finalGeoJSON = Array.isArray(geojson) ? geojson[0] : geojson;
+                    shp(e.target.result).then(function (newGeojson) {
+                        let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
+
+                        // Se já existir um GeoJSON gravado anteriormente, transfere o histórico de safras já salvas!
+                        if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
+                            const oldFeatureMap = {};
+                            currentFarm.geojson.features.forEach(oldF => {
+                                let fSub = oldF.properties ? (oldF.properties.Subs || oldF.properties.Subdivisao || oldF.properties.Talhao) : null;
+                                if (fSub) oldFeatureMap[cleanString(fSub)] = oldF.properties;
+                            });
+
+                            finalGeoJSON.features.forEach(newF => {
+                                let fSub = newF.properties ? (newF.properties.Subs || newF.properties.Subdivisao || newF.properties.Talhao) : null;
+                                if (fSub && oldFeatureMap[cleanString(fSub)]) {
+                                    newF.properties = { ...oldFeatureMap[cleanString(fSub)], ...newF.properties };
+                                }
+                            });
+                        }
+
                         runProcessGeoJSON(finalGeoJSON);
                     }).catch(err => {
                         alert('Erro ao carregar o .zip. Verifique se o ZIP contém os arquivos .shp, .dbf, .shx e .prj.');
@@ -1682,10 +1698,11 @@
                 };
                 reader.readAsArrayBuffer(shpInput.files[0]);
             } else {
+                // Usa a geometria que já existe no banco sem resetar
                 if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
                     runProcessGeoJSON(currentFarm.geojson);
                 } else {
-                    alert('Por favor, selecione ao menos o arquivo Shapefile (.zip) para cadastrar a geometria dos talhões!');
+                    alert('Por favor, selecione ao menos o arquivo Shapefile (.zip) para cadastrar a geometria inicial dos talhões!');
                 }
             }
         }
