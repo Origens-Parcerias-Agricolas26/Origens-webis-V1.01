@@ -494,7 +494,16 @@
                 const snapshot = await db.collection("farms").get();
                 farmsDatabase = {};
                 snapshot.forEach(doc => {
-                    farmsDatabase[doc.id] = doc.data();
+                    const data = doc.data();
+                    // Desserializa a string geojsonJson se existir
+                    if (data.geojsonJson) {
+                        try {
+                            data.geojson = JSON.parse(data.geojsonJson);
+                        } catch(e) {
+                            data.geojson = { "type": "FeatureCollection", "features": [] };
+                        }
+                    }
+                    farmsDatabase[doc.id] = data;
                 });
 
                 const usersSnap = await db.collection("users").get();
@@ -645,7 +654,6 @@
             updateGISMap(); 
         }
 
-        // CADASTRAR FAZENDA COM TRATAMENTO DE ERROS E POPUP VISUAL
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -663,11 +671,16 @@
                 return;
             }
 
-            const farmObj = { name: name, location: location, area: area, geojson: { "type": "FeatureCollection", "features": [] } };
+            const farmObj = { 
+                name: name, 
+                location: location, 
+                area: area, 
+                geojsonJson: JSON.stringify({ "type": "FeatureCollection", "features": [] }) 
+            };
 
             try {
                 await db.collection("farms").doc(id).set(farmObj);
-                farmsDatabase[id] = farmObj;
+                farmsDatabase[id] = { name: name, location: location, area: area, geojson: { "type": "FeatureCollection", "features": [] } };
 
                 populateFarmSelector();
                 renderAdminTables();
@@ -675,11 +688,10 @@
                 e.target.reset();
             } catch (err) {
                 console.error("Erro ao salvar fazenda:", err);
-                alert("Falha ao salvar fazenda na nuvem! Verifique se as Regras do Firestore estão desbloqueadas no Firebase. Detalhes: " + err.message);
+                alert("Falha ao salvar fazenda na nuvem! Detalhes: " + err.message);
             }
         }
 
-        // AUTORIZAR USUÁRIO GOOGLE COM TRATAMENTO DE ERROS E POPUP VISUAL
         async function handleCreateUser(e) {
             e.preventDefault();
             const nameInput = document.getElementById('new-name');
@@ -708,7 +720,7 @@
                 e.target.reset();
             } catch (err) {
                 console.error("Erro ao autorizar usuário:", err);
-                alert("Falha ao autorizar e-mail na nuvem! Verifique as Regras do Firestore. Detalhes: " + err.message);
+                alert("Falha ao autorizar e-mail na nuvem! Detalhes: " + err.message);
             }
         }
 
@@ -1274,7 +1286,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA FLEXÍVEL DE SHAPEFILE EM ZIP (INCLUINDO SUBPASTAS)
+        // PROCESSAR UPLOAD E SALVAR NO FIRESTORE COM CONVERSÃO DE STRING JSON (EVITA NESTED ARRAYS)
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1292,7 +1304,6 @@
 
             reader.onload = function (e) {
                 shp(e.target.result).then(async function (geojson) {
-                    // Tratar caso o ZIP retorne um Array de camadas
                     let finalGeoJSON = Array.isArray(geojson) ? geojson[0] : geojson;
 
                     const parseExcel = (fileInput, depthKey) => {
@@ -1337,8 +1348,16 @@
 
                     farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
+                    // CONVERTE O GEOJSON EM STRING JSON PARA EVITAR O ERRO DE NESTED ARRAYS NO FIRESTORE
+                    const payloadToSave = {
+                        name: farmsDatabase[selectedFarmKey].name,
+                        location: farmsDatabase[selectedFarmKey].location,
+                        area: farmsDatabase[selectedFarmKey].area,
+                        geojsonJson: JSON.stringify(finalGeoJSON)
+                    };
+
                     try {
-                        await db.collection("farms").doc(selectedFarmKey).set(farmsDatabase[selectedFarmKey]);
+                        await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
                         populateTalhaoSelector();
                         updateGISMap();
                         alert(`Shapefile e planilhas processados e salvos com sucesso na nuvem!`);
