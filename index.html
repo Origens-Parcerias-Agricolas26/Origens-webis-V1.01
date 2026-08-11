@@ -1152,9 +1152,20 @@
             }
         }
 
-        // REGRAS DE CLASSIFICAÇÃO ATUALIZADAS (QGIS PADRÃO ORIGENS)
+        // REGRAS DE CLASSIFICAÇÃO ATUALIZADAS (QGIS PADRÃO ORIGENS - ENXOFRE INCLUÍDO)
         function getQGISRules(param) {
-            if (param === 'Ca') {
+            if (param === 'S') {
+                return [
+                    { min: 21.01, max: Infinity, color: '#2B75E2', label: 'Nível 1 - > 21,0' },
+                    { min: 18.1, max: 21.0, color: '#265922', label: 'Nível 2 - 18,1 a 21,0' },
+                    { min: 15.1, max: 18.0, color: '#32D827', label: 'Nível 3 - 15,1 a 18,0' },
+                    { min: 12.1, max: 15.0, color: '#DCF5AA', label: 'Nível 4 - 12,1 a 15,0' },
+                    { min: 9.1, max: 12.0, color: '#FFFF00', label: 'Nível 5 - 9,1 a 12,0' },
+                    { min: 6.1, max: 9.0, color: '#FF961F', label: 'Nível 6 - 6,1 a 9,0' },
+                    { min: 3.1, max: 6.0, color: '#E0482B', label: 'Nível 7 - 3,1 a 6,0' },
+                    { min: 0, max: 3.09, color: '#801A1A', label: 'Nível 8 - < 3,1' }
+                ];
+            } else if (param === 'Ca') {
                 return [
                     { min: 4.01, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - >4.0' },
                     { min: 3.1, max: 4.0, color: '#FFF5AA', label: 'Nível 2 - 3.1 a 4.0' },
@@ -1826,7 +1837,7 @@
                     populateSafraSelector();
                     populateTalhaoSelector();
                     updateGISMap();
-                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas na nuvem com sucesso!`);
+                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas no histórico com sucesso!`);
                 } catch (err) {
                     console.error("Erro ao salvar no Firestore:", err);
                     alert("Erro ao salvar projeto na nuvem: " + err.message);
