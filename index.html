@@ -305,12 +305,17 @@
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- FORMULÁRIO CADASTRAR NOVA FAZENDA -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-tractor text-origens-green mr-2"></i>Cadastrar Nova Fazenda</h3>
                             <form onsubmit="handleCreateFarm(event)" class="space-y-4">
                                 <div>
                                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">ID da Fazenda (sem espaços)</label>
                                     <input type="text" id="farm-id" required placeholder="Ex: fazenda_boa_vista" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome do Produtor</label>
+                                    <input type="text" id="farm-producer" required placeholder="Ex: João da Silva" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome da Propriedade</label>
@@ -370,7 +375,7 @@
                                 <table class="w-full text-left text-xs">
                                     <thead class="bg-slate-100 uppercase text-slate-600 font-bold border-b border-slate-200">
                                         <tr>
-                                            <th class="p-3">Fazenda</th>
+                                            <th class="p-3">Fazenda / Produtor</th>
                                             <th class="p-3">Localização</th>
                                             <th class="p-3">Área (Ha)</th>
                                             <th class="p-3 text-right">Ações</th>
@@ -539,6 +544,7 @@
 
                     farmsDatabase[doc.id] = {
                         name: data.name || '',
+                        producer: data.producer || '',
                         location: data.location || '',
                         area: data.area || 0,
                         geojson: parsedGeojson
@@ -652,24 +658,24 @@
 
             let keysToDisplay = Object.keys(farmsDatabase);
 
-            // Filtrar apenas fazendas autorizadas se não for admin
             if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
                 keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
             }
 
             keysToDisplay.forEach(key => {
                 if (farmsDatabase[key]) {
-                    farmSelect.innerHTML += `<option value="${key}">${farmsDatabase[key].name} (${farmsDatabase[key].area} Ha)</option>`;
+                    const farm = farmsDatabase[key];
+                    const labelProducer = farm.producer ? ` [${farm.producer}]` : '';
+                    farmSelect.innerHTML += `<option value="${key}">${farm.name}${labelProducer} (${farm.area} Ha)</option>`;
                 }
             });
 
-            // Renderizar Lista de Checkboxes no formulário de autorizações
             const checkboxContainer = document.getElementById('new-farm-checkboxes');
             if (checkboxContainer) {
                 checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                         <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
-                        <span>${farmsDatabase[k].name} (${farmsDatabase[k].location})</span>
+                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? `(${farmsDatabase[k].producer})` : ''} - ${farmsDatabase[k].location}</span>
                     </label>
                 `).join('');
             }
@@ -713,20 +719,23 @@
             updateGISMap(); 
         }
 
+        // CADASTRAR FAZENDA INCLUINDO O NOME DO PRODUTOR
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
+            const producerInput = document.getElementById('farm-producer');
             const nameInput = document.getElementById('farm-name');
             const locationInput = document.getElementById('farm-location');
             const areaInput = document.getElementById('farm-area');
 
             const id = idInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+            const producer = producerInput.value.trim();
             const name = nameInput.value.trim();
             const location = locationInput.value.trim();
             const area = parseFloat(areaInput.value);
 
-            if (!id || !name) {
-                alert("Por favor, preencha o ID e o Nome da propriedade!");
+            if (!id || !name || !producer) {
+                alert("Por favor, preencha o ID, o Nome do Produtor e o Nome da propriedade!");
                 return;
             }
 
@@ -735,6 +744,7 @@
 
             const payloadToSave = { 
                 name: name, 
+                producer: producer,
                 location: location, 
                 area: area, 
                 geojsonZip: compressedZip
@@ -742,11 +752,11 @@
 
             try {
                 await db.collection("farms").doc(id).set(payloadToSave);
-                farmsDatabase[id] = { name: name, location: location, area: area, geojson: initialGeoJSON };
+                farmsDatabase[id] = { name: name, producer: producer, location: location, area: area, geojson: initialGeoJSON };
 
                 populateFarmSelector();
                 renderAdminTables();
-                alert(`Fazenda ${name} cadastrada com sucesso na nuvem!`);
+                alert(`Fazenda ${name} (${producer}) cadastrada com sucesso na nuvem!`);
                 e.target.reset();
             } catch (err) {
                 console.error("Erro ao salvar fazenda:", err);
@@ -754,7 +764,6 @@
             }
         }
 
-        // AUTORIZAR PRODUTOR COM MÚLTIPLAS FAZENDAS SELECIONADAS
         async function handleCreateUser(e) {
             e.preventDefault();
             const nameInput = document.getElementById('new-name');
@@ -805,7 +814,10 @@
             const farmsBody = document.getElementById('farms-table-body');
             farmsBody.innerHTML = Object.keys(farmsDatabase).map(k => `
                 <tr class="hover:bg-slate-50">
-                    <td class="p-3 font-bold">${farmsDatabase[k].name}</td>
+                    <td class="p-3">
+                        <span class="font-bold block text-slate-900">${farmsDatabase[k].name}</span>
+                        <span class="text-[11px] font-semibold text-emerald-700 block"><i class="fa-solid fa-user text-[10px] mr-1"></i>${farmsDatabase[k].producer || 'Produtor Não Informado'}</span>
+                    </td>
                     <td class="p-3 text-slate-500">${farmsDatabase[k].location}</td>
                     <td class="p-3 font-semibold text-emerald-600">${farmsDatabase[k].area} ha</td>
                     <td class="p-3 text-right">
@@ -1434,6 +1446,7 @@
 
                     const payloadToSave = {
                         name: String(farmsDatabase[selectedFarmKey].name || ''),
+                        producer: String(farmsDatabase[selectedFarmKey].producer || ''),
                         location: String(farmsDatabase[selectedFarmKey].location || ''),
                         area: Number(farmsDatabase[selectedFarmKey].area || 0),
                         geojsonZip: compressedZip
