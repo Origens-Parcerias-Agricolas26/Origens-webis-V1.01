@@ -605,14 +605,18 @@
             }
         }
 
-        // VERIFICAÇÃO DE PERMISSÃO: APENAS ADMINISTRADORES EXPLÍCITOS PODEM EDITAR/ENVIAR PROJETOS
+        // VERIFICAÇÃO DE PERMISSÃO: ADMINISTRATIVO ORIGENS POSSUI MODO EDIÇÃO TOTAL
         async function checkUserAuthorization() {
             if (!currentUser) return;
 
             const userEmail = currentUser.email.toLowerCase();
             
-            // E-Mails Administrativos Master com Permissão Total de Edição
-            const adminEmails = ["tiagoritter@gmail.com", "tiago.ritter@origens.agr.br"];
+            // E-Mails Administrativos Master com Permissão Total de Edição (Adicionado administrativo@origens.agr.br)
+            const adminEmails = [
+                "administrativo@origens.agr.br",
+                "tiagoritter@gmail.com", 
+                "tiago.ritter@origens.agr.br"
+            ];
 
             currentUserRole = "client";
             currentUserAllowedFarms = ["all"];
@@ -620,7 +624,6 @@
             if (adminEmails.includes(userEmail)) {
                 currentUserRole = "admin";
             } else if (userEmail.endsWith("@origens.agr.br")) {
-                // Outros e-mails do mesmo domínio entram como MODO LEITURA por padrão
                 currentUserRole = "client";
                 currentUserAllowedFarms = ["all"];
             } else {
@@ -1596,7 +1599,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAMENTO DE UPLOAD COM PRESERVAÇÃO DE SAFRAS ANTERIORES NO FIRESTORE
+        // PROCESSAMENTO DE UPLOAD COM PRESERVAÇÃO E MESCLAGEM ACUMULATIVA DE SAFRAS
         function processUploadedFiles() {
             if (currentUserRole !== 'admin') {
                 alert("Apenas o Administrador Master pode realizar importações de projetos.");
@@ -1694,7 +1697,7 @@
                 }
             };
 
-            // Se o usuário selecionou um arquivo ZIP novo
+            // Se selecionou um novo ZIP, mescla com o mapa existente
             if (shpInput.files.length) {
                 const reader = new FileReader();
                 reader.onload = function (e) {
