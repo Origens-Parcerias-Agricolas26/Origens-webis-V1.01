@@ -137,6 +137,14 @@
                                 </select>
                             </div>
 
+                            <!-- FILTRO POR ANO SAFRA (ABAIXO DE FAZENDA SELECIONADA) -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra</label>
+                                <select id="sel-safra" onchange="updateGISMap()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
+                                    <option value="all">Todas as Safras</option>
+                                </select>
+                            </div>
+
                             <!-- FILTRO POR TALHÃO -->
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-filter text-origens-green mr-1"></i>Filtrar por Talhão</label>
@@ -680,12 +688,51 @@
                 `).join('');
             }
 
+            populateSafraSelector();
             populateTalhaoSelector();
         }
 
         function toggleAllFarmsCheckboxes(masterChk) {
             const items = document.querySelectorAll('.chk-farm-item');
             items.forEach(chk => chk.checked = masterChk.checked);
+        }
+
+        // POPULAR SELETOR DE ANO SAFRA
+        function populateSafraSelector() {
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
+
+            const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
+            const safraSelect = document.getElementById('sel-safra');
+            if (!safraSelect) return;
+            
+            safraSelect.innerHTML = '<option value="all">Todas as Safras</option>';
+
+            if (currentGeoJSON.features && currentGeoJSON.features.length) {
+                const safrasSet = new Set();
+                const depths = ['d0_10', 'd10_20', 'd20_40'];
+
+                currentGeoJSON.features.forEach(f => {
+                    if (f.properties) {
+                        const directSafra = f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA'];
+                        if (directSafra !== undefined && directSafra !== null && directSafra !== '') {
+                            safrasSet.add(String(Math.round(directSafra)));
+                        }
+                        depths.forEach(d => {
+                            if (f.properties[d]) {
+                                const val = f.properties[d]['Ano Safra'] || f.properties[d]['AnoSafra'] || f.properties[d]['Safra'] || f.properties[d]['ANO_SAFRA'];
+                                if (val !== undefined && val !== null && val !== '') {
+                                    safrasSet.add(String(Math.round(val)));
+                                }
+                            }
+                        });
+                    }
+                });
+
+                Array.from(safrasSet).sort().reverse().forEach(s => {
+                    safraSelect.innerHTML += `<option value="${s}">Safra ${s}</option>`;
+                });
+            }
         }
 
         function populateTalhaoSelector() {
@@ -714,12 +761,15 @@
         function changeActiveFarm() { 
             const talhaoSelect = document.getElementById('sel-talhao');
             if (talhaoSelect) talhaoSelect.value = 'all';
+
+            const safraSelect = document.getElementById('sel-safra');
+            if (safraSelect) safraSelect.value = 'all';
             
+            populateSafraSelector();
             populateTalhaoSelector();
             updateGISMap(); 
         }
 
-        // CADASTRAR FAZENDA INCLUINDO O NOME DO PRODUTOR
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -898,6 +948,7 @@
                 });
 
                 populateTalhaoSelector();
+                populateSafraSelector();
                 updateGISMap();
             } else {
                 setTimeout(() => {
@@ -1031,11 +1082,28 @@
             const showLabels = document.getElementById('chk-labels').checked;
             const showValues = document.getElementById('chk-values').checked;
             const selectedTalhao = document.getElementById('sel-talhao').value;
+            const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
 
             return L.geoJSON(currentGeoJSON, {
                 filter: function(feature) {
-                    if (selectedTalhao === 'all') return true;
-                    return feature.properties && feature.properties.Talhao === selectedTalhao;
+                    let passTalhao = (selectedTalhao === 'all') || (feature.properties && String(feature.properties.Talhao) === selectedTalhao);
+                    
+                    let passSafra = true;
+                    if (selectedSafra !== 'all') {
+                        let featureSafra = feature.properties ? (feature.properties['Ano Safra'] || feature.properties['AnoSafra'] || feature.properties['Safra'] || feature.properties['ANO_SAFRA']) : null;
+                        
+                        if (!featureSafra && feature.properties && feature.properties[depthKey]) {
+                            featureSafra = feature.properties[depthKey]['Ano Safra'] || feature.properties[depthKey]['AnoSafra'] || feature.properties[depthKey]['Safra'] || feature.properties[depthKey]['ANO_SAFRA'];
+                        }
+
+                        if (featureSafra !== undefined && featureSafra !== null) {
+                            passSafra = String(Math.round(featureSafra)) === selectedSafra;
+                        } else {
+                            passSafra = false;
+                        }
+                    }
+
+                    return passTalhao && passSafra;
                 },
                 style: function(feature) {
                     const depthData = feature.properties[depthKey] || {};
@@ -1169,6 +1237,7 @@
             const showLabels = document.getElementById('chk-labels').checked;
             const showValues = document.getElementById('chk-values').checked;
             const selectedTalhao = document.getElementById('sel-talhao').value;
+            const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
 
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1196,7 +1265,16 @@
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
                 let filteredFeatures = currentGeoJSON.features;
                 if (selectedTalhao !== 'all') {
-                    filteredFeatures = filteredFeatures.filter(f => f.properties && f.properties.Talhao === selectedTalhao);
+                    filteredFeatures = filteredFeatures.filter(f => f.properties && String(f.properties.Talhao) === selectedTalhao);
+                }
+                if (selectedSafra !== 'all') {
+                    filteredFeatures = filteredFeatures.filter(f => {
+                        let featureSafra = f.properties ? (f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA']) : null;
+                        if (!featureSafra && f.properties && f.properties[depthConfig.key]) {
+                            featureSafra = f.properties[depthConfig.key]['Ano Safra'] || f.properties[depthConfig.key]['AnoSafra'] || f.properties[depthConfig.key]['Safra'] || f.properties[depthConfig.key]['ANO_SAFRA'];
+                        }
+                        return featureSafra !== undefined && featureSafra !== null && String(Math.round(featureSafra)) === selectedSafra;
+                    });
                 }
 
                 let allPts = [];
@@ -1454,6 +1532,7 @@
 
                     try {
                         await db.collection("farms").doc(selectedFarmKey).set(payloadToSave);
+                        populateSafraSelector();
                         populateTalhaoSelector();
                         updateGISMap();
                         alert(`Shapefile e planilhas processados, compactados e salvos com sucesso na nuvem!`);
