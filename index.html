@@ -150,11 +150,11 @@
                                     </select>
                                 </div>
 
-                                <!-- SELETOR DE DATA DO SATÉLITE REINCORPORADO -->
+                                <!-- SELETOR DE DATA CONECTADO AO WMS DA NASA -->
                                 <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
                                     <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
-                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Apenas contornos das subdivisões ativos</span>
+                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Passagem do Sentinel-2 a cada 5 dias</span>
                                 </div>
                             </div>
 
@@ -1167,7 +1167,7 @@
             }
         }
 
-        // ALTERAÇÃO DE IMAGENS DE SATÉLITE COM PARÂMETRO TEMPORAL DA NASA GIBS
+        // ALTERAÇÃO DE IMAGENS DE SATÉLITE VIA WMS OFICIAL DA NASA COM PARÂMETRO TEMPORAL EM TEMPO REAL
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
@@ -1189,30 +1189,42 @@
             const esriFallbackUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
             if (selectedType === 'sentinel_rgb') {
-                // Servidor NASA GIBS Sentinel-2 True Color (Suporta Filtro Temporal Diário sem Tela Branca)
-                const nasaUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Sentinel_2_L2A_TrueColor/default/${dateVal}/GoogleMapsCompatible_Level14/{z}/{y}/{x}.png`;
-                
-                tileLayerLeft = L.tileLayer(nasaUrl, {
-                    attribution: 'NASA GIBS &copy; Sentinel-2 RGB',
+                // WMS Oficial NASA GIBS Sentinel-2 TrueColor com Suporte Dinâmico a TIME
+                tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_TrueColor',
+                    format: 'image/png',
+                    transparent: true,
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer(nasaUrl, {
-                    attribution: 'NASA GIBS &copy; Sentinel-2 RGB',
+                tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_TrueColor',
+                    format: 'image/png',
+                    transparent: true,
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // Servidor NASA GIBS Sentinel-2 NDVI Biomassa (Suporta Filtro Temporal Diário)
-                const nasaNdviUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Sentinel_2_L2A_NDVI/default/${dateVal}/GoogleMapsCompatible_Level14/{z}/{y}/{x}.png`;
-
-                tileLayerLeft = L.tileLayer(nasaNdviUrl, {
-                    attribution: 'NASA GIBS &copy; Sentinel-2 NDVI',
+                // WMS Oficial NASA GIBS Sentinel-2 NDVI Biomassa com Suporte Dinâmico a TIME
+                tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer(nasaNdviUrl, {
-                    attribution: 'NASA GIBS &copy; Sentinel-2 NDVI',
+                tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    TIME: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
                     maxZoom: 18
                 }).addTo(mapRight);
 
@@ -1228,11 +1240,6 @@
                     maxZoom: 18
                 }).addTo(mapRight);
             }
-
-            // Fallback de segurança contra ausência de cobertura em determinadas datas
-            tileLayerLeft.on('tileerror', function() {
-                console.warn('Imagem não disponível para a data selecionada. Redirecionando...');
-            });
 
             updateGISMap();
         }
