@@ -576,16 +576,19 @@
         }
 
         async function compressGeoJSON(geojsonObj) {
-            // Otimização de Coordenadas para Reduzir Tamanho mantendo precisão GIS perfeita
             const sanitizedFeatures = geojsonObj.features ? geojsonObj.features.map(f => {
                 const geom = f.geometry ? { ...f.geometry } : null;
                 if (geom && geom.coordinates) {
-                    geom.coordinates = geom.coordinates.map(poly => 
-                        poly.map(pt => [
-                            Math.round(pt[0] * 1000000) / 1000000,
-                            Math.round(pt[1] * 1000000) / 1000000
-                        ])
-                    );
+                    const roundRing = ring => ring.map(pt => [
+                        Math.round(pt[0] * 1000000) / 1000000,
+                        Math.round(pt[1] * 1000000) / 1000000
+                    ]);
+
+                    if (geom.type === 'MultiPolygon') {
+                        geom.coordinates = geom.coordinates.map(poly => poly.map(roundRing));
+                    } else if (geom.type === 'Polygon') {
+                        geom.coordinates = geom.coordinates.map(roundRing);
+                    }
                 }
                 return { type: f.type, properties: f.properties, geometry: geom };
             }) : [];
@@ -677,7 +680,6 @@
             initLeafletMap();
         }
 
-        // CARREGAMENTO DA NUVEM SUPORTANDO CHUNKS (FRAGMENTOS PARA SUPERAR O LIMITE DE 1MB)
         async function loadCloudData() {
             try {
                 const snapshot = await db.collection("farms").get();
@@ -689,7 +691,6 @@
 
                     let fullZipStr = data.geojsonZip || '';
 
-                    // Se a fazenda foi dividida em chunks devido ao tamanho do arquivo
                     if (data.isChunked && data.chunkCount > 0) {
                         try {
                             const chunksSnap = await db.collection("farms").doc(doc.id).collection("chunks").orderBy("index").get();
@@ -1407,6 +1408,7 @@
 
         function toggleLayers() { updateGISMap(); }
 
+        // EXPORTAÇÃO DE LAUDO PDF COM ESCALA PROPORCIONAL UNIFICADA (SEM ACHATAMENTO)
         function drawCanvasForParam(param, depthConfig, farmInfo, rules) {
             const canvas = document.getElementById('pdf-render-canvas');
             const ctx = canvas.getContext('2d');
@@ -1447,7 +1449,16 @@
 
                 let allPts = [];
                 filteredFeatures.forEach(f => {
-                    f.geometry.coordinates[0].forEach(pt => allPts.push(pt));
+                    if (f.geometry && f.geometry.coordinates) {
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : f.geometry.coordinates;
+                        rings.forEach(ring => {
+                            if (Array.isArray(ring)) ring.forEach(pt => {
+                                if (Array.isArray(pt) && pt.length >= 2) allPts.push(pt);
+                            });
+                        });
+                    }
                 });
 
                 if (allPts.length) {
@@ -1457,6 +1468,16 @@
                     const maxY = Math.max(...allPts.map(p => p[1]));
 
                     const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
+
+                    // Ajuste de Escala Proporcional GIS (Corrige Fator de Latitude para Eliminar Achatamento)
+                    const centerLat = (minY + maxY) / 2;
+                    const cosScale = Math.cos(centerLat * Math.PI / 180);
+                    const spanX = (maxX - minX) * cosScale || 0.0001;
+                    const spanY = (maxY - minY) || 0.0001;
+
+                    const scale = Math.min(mapW / spanX, mapH / spanY);
+                    const offsetX = mapX + (mapW - spanX * scale) / 2;
+                    const offsetY = mapY + (mapH - spanY * scale) / 2;
 
                     filteredFeatures.forEach(f => {
                         const depthData = getFeatureDepthData(f, depthConfig.key, selectedSafra);
@@ -1469,45 +1490,55 @@
                             if (matchedRule) fillColor = matchedRule.color;
                         }
 
-                        ctx.beginPath();
-                        const coords = f.geometry.coordinates[0];
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : (f.geometry.coordinates || []);
 
-                        let sumPx = 0, sumPy = 0;
-                        coords.forEach((pt, index) => {
-                            const px = mapX + ((pt[0] - minX) / (maxX - minX)) * mapW;
-                            const py = mapY + ((maxY - pt[1]) / (maxY - minY)) * mapH;
-                            sumPx += px;
-                            sumPy += py;
+                        let totalPx = 0, totalPy = 0, ptCount = 0;
 
-                            if (index === 0) ctx.moveTo(px, py);
-                            else ctx.lineTo(px, py);
+                        rings.forEach(ring => {
+                            if (!Array.isArray(ring) || !ring.length) return;
+
+                            ctx.beginPath();
+                            ring.forEach((pt, index) => {
+                                const px = offsetX + (pt[0] - minX) * cosScale * scale;
+                                const py = offsetY + (maxY - pt[1]) * scale;
+                                totalPx += px;
+                                totalPy += py;
+                                ptCount++;
+
+                                if (index === 0) ctx.moveTo(px, py);
+                                else ctx.lineTo(px, py);
+                            });
+                            ctx.closePath();
+
+                            ctx.fillStyle = fillColor;
+                            ctx.fill();
+                            ctx.strokeStyle = "#1d4ed8";
+                            ctx.lineWidth = 1.2;
+                            ctx.stroke();
                         });
-                        ctx.closePath();
 
-                        ctx.fillStyle = fillColor;
-                        ctx.fill();
-                        ctx.strokeStyle = "#1d4ed8";
-                        ctx.lineWidth = 1.2;
-                        ctx.stroke();
+                        if (ptCount > 0) {
+                            const cx = totalPx / ptCount;
+                            const cy = totalPy / ptCount;
 
-                        const cx = sumPx / coords.length;
-                        const cy = sumPy / coords.length;
+                            let pdfLabel = "";
+                            if (showLabels && showValues) {
+                                pdfLabel = `${f.properties.Subs || ''}: ${val !== null && val !== undefined ? val : 'N/A'}`;
+                            } else if (showLabels) {
+                                pdfLabel = f.properties.Subs || '';
+                            } else if (showValues) {
+                                pdfLabel = `${val !== null && val !== undefined ? val : 'N/A'}`;
+                            }
 
-                        let pdfLabel = "";
-                        if (showLabels && showValues) {
-                            pdfLabel = `${f.properties.Subs}: ${val !== null && val !== undefined ? val : 'N/A'}`;
-                        } else if (showLabels) {
-                            pdfLabel = f.properties.Subs;
-                        } else if (showValues) {
-                            pdfLabel = `${val !== null && val !== undefined ? val : 'N/A'}`;
-                        }
-
-                        if (pdfLabel !== "") {
-                            ctx.fillStyle = "#000000";
-                            ctx.font = "bold 9px Helvetica, Arial";
-                            ctx.textAlign = "center";
-                            ctx.fillText(pdfLabel, cx, cy);
-                            ctx.textAlign = "left";
+                            if (pdfLabel !== "") {
+                                ctx.fillStyle = "#000000";
+                                ctx.font = "bold 9px Helvetica, Arial";
+                                ctx.textAlign = "center";
+                                ctx.fillText(pdfLabel, cx, cy);
+                                ctx.textAlign = "left";
+                            }
                         }
                     });
                 }
@@ -1542,7 +1573,7 @@
             ctx.font = "14px Helvetica, Arial";
             ctx.fillText("www.origens.agr.br", 50, canvas.height - 35);
             ctx.textAlign = "right";
-            ctx.fillText("Escala 1:26.000 | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
+            ctx.fillText("Escala Automática | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
 
             return canvas.toDataURL('image/jpeg', 0.98);
         }
@@ -1627,7 +1658,6 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAMENTO DE UPLOAD COM SALVAMENTO EM FRAGMENTOS (CHUNKS) SE EXCEDER 1MB
         function processUploadedFiles() {
             if (currentUserRole !== 'admin') {
                 alert("Apenas o Administrador Master pode realizar importações de projetos.");
@@ -1705,14 +1735,12 @@
 
                 const compressedZip = await compressGeoJSON(baseGeoJSON);
 
-                // LÓGICA ANTI-EXCESSO DE TAMANHO (CHUNK SPLIT DE 700KB)
                 const CHUNK_SIZE = 700000;
                 
                 try {
                     if (compressedZip.length > CHUNK_SIZE) {
                         const totalChunks = Math.ceil(compressedZip.length / CHUNK_SIZE);
 
-                        // Grava documento principal
                         await db.collection("farms").doc(selectedFarmKey).set({
                             name: String(farmsDatabase[selectedFarmKey].name || ''),
                             producer: String(farmsDatabase[selectedFarmKey].producer || ''),
@@ -1723,7 +1751,6 @@
                             geojsonZip: ''
                         });
 
-                        // Grava partes em subcoleção
                         for (let i = 0; i < totalChunks; i++) {
                             const part = compressedZip.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
                             await db.collection("farms").doc(selectedFarmKey).collection("chunks").doc(`chunk_${i}`).set({
@@ -1732,7 +1759,6 @@
                             });
                         }
                     } else {
-                        // Grava documento único se for menor de 700KB
                         await db.collection("farms").doc(selectedFarmKey).set({
                             name: String(farmsDatabase[selectedFarmKey].name || ''),
                             producer: String(farmsDatabase[selectedFarmKey].producer || ''),
