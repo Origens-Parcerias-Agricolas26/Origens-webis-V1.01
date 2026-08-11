@@ -332,6 +332,7 @@
                             </form>
                         </div>
 
+                        <!-- AUTORIZAÇÃO DE CLIENTE COM SELEÇÃO MÚLTIPLA DE FAZENDAS -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-user-plus text-origens-green mr-2"></i>Autorizar E-mail Google do Cliente</h3>
                             <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -344,9 +345,16 @@
                                     <input type="email" id="new-email" required placeholder="Ex: joao@gmail.com" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Liberar Acesso Às Fazendas</label>
-                                    <select id="new-farm-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-bold text-slate-800">
-                                    </select>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Liberar Acesso Às Fazendas (Selecione Uma ou Mais)</label>
+                                    <div class="mb-2">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded-lg w-full text-xs font-bold text-slate-800">
+                                            <input type="checkbox" id="chk-farm-all" onchange="toggleAllFarmsCheckboxes(this)" class="h-4 w-4 text-origens-green rounded">
+                                            <span>TODAS AS FAZENDAS (Acesso Total)</span>
+                                        </label>
+                                    </div>
+                                    <div id="new-farm-checkboxes" class="max-h-36 overflow-y-auto bg-slate-50 border border-slate-300 rounded-xl p-3 space-y-2">
+                                        <!-- Checkboxes das fazendas gerados via JS -->
+                                    </div>
                                 </div>
                                 <button type="submit" class="w-full bg-origens-green hover:bg-origens-dark text-white font-bold p-3 rounded-xl transition-all shadow">
                                     Autorizar E-mail Google
@@ -421,6 +429,8 @@
         let geojsonLayerLeft = null;
         let geojsonLayerRight = null;
         let currentUser = null;
+        let currentUserRole = "client";
+        let currentUserAllowedFarms = ["all"];
         let farmsDatabase = {};
         let usersDatabase = [];
         let splitPosition = 0.5;
@@ -433,7 +443,6 @@
             return Math.round(num * 10) / 10;
         }
 
-        // FUNÇÕES AUXILIARES DE COMPRESSÃO / DESCOMPRESSÃO ZIP PARA O FIRESTORE
         async function compressGeoJSON(geojsonObj) {
             const str = JSON.stringify(geojsonObj);
             const zip = new JSZip();
@@ -470,18 +479,18 @@
             const userEmail = currentUser.email.toLowerCase();
             const adminEmails = ["tiagoritter@gmail.com", "tiago.ritter@origens.agr.br"];
 
-            let role = "client";
-            let allowedFarms = ["all"];
+            currentUserRole = "client";
+            currentUserAllowedFarms = ["all"];
 
             if (adminEmails.includes(userEmail) || userEmail.endsWith("@origens.agr.br")) {
-                role = "admin";
+                currentUserRole = "admin";
             } else {
                 try {
                     const userDoc = await db.collection("users").doc(userEmail).get();
                     if (userDoc.exists) {
                         const userData = userDoc.data();
-                        role = userData.role || "client";
-                        allowedFarms = userData.farms || [];
+                        currentUserRole = userData.role || "client";
+                        currentUserAllowedFarms = userData.farms || [];
                     } else {
                         alert(`O e-mail ${userEmail} ainda não possui permissão de acesso. Entre em contato com a administração.`);
                         await auth.signOut();
@@ -497,7 +506,7 @@
             document.getElementById('user-display-name').innerText = currentUser.displayName || currentUser.email;
             document.getElementById('user-display-email').innerText = currentUser.email;
 
-            if (role === 'admin') {
+            if (currentUserRole === 'admin') {
                 document.getElementById('admin-only-menu').classList.remove('hidden');
                 document.getElementById('upload-box-admin').classList.remove('hidden');
             } else {
@@ -519,7 +528,6 @@
                     let parsedGeojson = { "type": "FeatureCollection", "features": [] };
 
                     if (data.geojsonZip) {
-                        // Suporte a GeoJSON comprimido com ZIP (Alta performance e sem limite de tamanho)
                         parsedGeojson = await decompressGeoJSON(data.geojsonZip);
                     } else if (data.geojsonJson) {
                         try {
@@ -642,16 +650,36 @@
             const farmSelect = document.getElementById('sel-farm');
             farmSelect.innerHTML = '';
 
-            Object.keys(farmsDatabase).forEach(key => {
-                farmSelect.innerHTML += `<option value="${key}">${farmsDatabase[key].name} (${farmsDatabase[key].area} Ha)</option>`;
+            let keysToDisplay = Object.keys(farmsDatabase);
+
+            // Filtrar apenas fazendas autorizadas se não for admin
+            if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
+                keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
+            }
+
+            keysToDisplay.forEach(key => {
+                if (farmsDatabase[key]) {
+                    farmSelect.innerHTML += `<option value="${key}">${farmsDatabase[key].name} (${farmsDatabase[key].area} Ha)</option>`;
+                }
             });
 
-            const newFarmSelect = document.getElementById('new-farm-select');
-            if(newFarmSelect) {
-                newFarmSelect.innerHTML = `<option value="all">Todas as Fazendas (Acesso Total)</option>` + 
-                    Object.keys(farmsDatabase).map(k => `<option value="${k}">${farmsDatabase[k].name}</option>`).join('');
+            // Renderizar Lista de Checkboxes no formulário de autorizações
+            const checkboxContainer = document.getElementById('new-farm-checkboxes');
+            if (checkboxContainer) {
+                checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                        <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
+                        <span>${farmsDatabase[k].name} (${farmsDatabase[k].location})</span>
+                    </label>
+                `).join('');
             }
+
             populateTalhaoSelector();
+        }
+
+        function toggleAllFarmsCheckboxes(masterChk) {
+            const items = document.querySelectorAll('.chk-farm-item');
+            items.forEach(chk => chk.checked = masterChk.checked);
         }
 
         function populateTalhaoSelector() {
@@ -685,7 +713,6 @@
             updateGISMap(); 
         }
 
-        // CADASTRAR FAZENDA COM COMPRESSÃO E SEM MATRIZES
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -727,32 +754,47 @@
             }
         }
 
+        // AUTORIZAR PRODUTOR COM MÚLTIPLAS FAZENDAS SELECIONADAS
         async function handleCreateUser(e) {
             e.preventDefault();
             const nameInput = document.getElementById('new-name');
             const emailInput = document.getElementById('new-email');
-            const farmSelect = document.getElementById('new-farm-select');
+            const chkAll = document.getElementById('chk-farm-all');
+            const chkItems = document.querySelectorAll('.chk-farm-item:checked');
 
             const name = nameInput.value.trim();
             const email = emailInput.value.trim().toLowerCase();
-            const farmKey = farmSelect.value;
 
             if (!email) {
                 alert("Por favor, preencha o e-mail Google!");
                 return;
             }
 
+            let selectedFarms = [];
+            if (chkAll.checked) {
+                selectedFarms = ['all'];
+            } else {
+                chkItems.forEach(chk => selectedFarms.push(chk.value));
+            }
+
+            if (!selectedFarms.length) {
+                alert("Por favor, marque pelo menos uma fazenda ou selecione 'TODAS AS FAZENDAS'!");
+                return;
+            }
+
             const userObj = {
                 name: name,
                 role: 'client',
-                farms: farmKey === 'all' ? ['all'] : [farmKey]
+                farms: selectedFarms
             };
 
             try {
                 await db.collection("users").doc(email).set(userObj);
                 await loadCloudData();
-                alert(`E-mail ${email} autorizado com sucesso na nuvem!`);
+                alert(`E-mail ${email} autorizado com sucesso para as fazendas selecionadas!`);
                 e.target.reset();
+                if(chkAll) chkAll.checked = false;
+                toggleAllFarmsCheckboxes(chkAll);
             } catch (err) {
                 console.error("Erro ao autorizar usuário:", err);
                 alert("Falha ao autorizar e-mail na nuvem! Detalhes: " + err.message);
@@ -773,16 +815,22 @@
             `).join('');
 
             const usersBody = document.getElementById('users-table-body');
-            usersBody.innerHTML = usersDatabase.map((u) => `
-                <tr class="hover:bg-slate-50">
-                    <td class="p-3 font-bold">${u.name || 'Cliente'}</td>
-                    <td class="p-3 font-mono text-slate-600">${u.email}</td>
-                    <td class="p-3 text-slate-500">${u.farms ? u.farms.join(', ') : 'Todas'}</td>
-                    <td class="p-3 text-right">
-                        <button onclick="deleteUser('${u.email}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            usersBody.innerHTML = usersDatabase.map((u) => {
+                let farmNames = 'Todas';
+                if (u.farms && !u.farms.includes('all')) {
+                    farmNames = u.farms.map(fKey => farmsDatabase[fKey] ? farmsDatabase[fKey].name : fKey).join(', ');
+                }
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 font-bold">${u.name || 'Cliente'}</td>
+                        <td class="p-3 font-mono text-slate-600">${u.email}</td>
+                        <td class="p-3 text-slate-500 font-semibold">${farmNames}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="deleteUser('${u.email}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         async function deleteFarm(key) {
@@ -1321,7 +1369,6 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAR UPLOAD E SALVAR COMPACTADO NO FIRESTORE
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1383,7 +1430,6 @@
 
                     farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
-                    // COMPRESSÃO ZIP EM MEMÓRIA DO GEOJSON PARA SUPORTAR SHAPEFILES GRANDES NO FIRESTORE
                     const compressedZip = await compressGeoJSON(finalGeoJSON);
 
                     const payloadToSave = {
