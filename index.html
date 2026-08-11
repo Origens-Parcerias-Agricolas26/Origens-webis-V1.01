@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Origens - Parcerias Agrícolas | WebGIS Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet GIS CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- JSZip, Shapefile Parser & XLSX Reader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF para Geração Direta de PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        origens: { green: '#2E7D32', dark: '#1B5E20', light: '#E8F5E9', accent: '#F57C00' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        #map-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .map-pane-split { position: absolute; top: 0; bottom: 0; height: 100%; }
+        #left-map-pane { left: 0; width: 100%; z-index: 10; border-right: 2px solid #2E7D32; }
+        #right-map-pane { right: 0; width: 0%; z-index: 20; display: none; border-left: 2px solid #2E7D32; }
+        #split-divider {
+            position: absolute; top: 0; bottom: 0; left: 50%; width: 6px;
+            background-color: #2E7D32; box-shadow: 0 0 12px rgba(0,0,0,0.6);
+            z-index: 1000; cursor: ew-resize; display: none; transform: translateX(-50%);
+        }
+        #split-divider-handle {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 38px; height: 38px; background-color: #2E7D32; color: #ffffff;
+            border: 2px solid #ffffff; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); font-size: 14px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+
+    <!-- BARRA DE NAVEGAÇÃO -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="showSection('landing')">
+                    <div class="w-10 h-10 bg-origens-green rounded-lg flex items-center justify-center text-white text-xl font-bold">
+                        <i class="fa-solid fa-leaf"></i>
+                    </div>
+                    <div>
+                        <span class="text-2xl font-black tracking-tight text-slate-900 block leading-none">ORIGENS</span>
+                        <span class="text-xs font-semibold text-origens-green tracking-widest uppercase">Parcerias Agrícolas</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="loginWithGoogle()" class="bg-origens-green hover:bg-origens-dark text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow flex items-center gap-2">
+                        <i class="fa-brands fa-google"></i>
+                        <span>Entrar com Google</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- LANDING PAGE -->
+    <div id="landing-section">
+        <section class="relative bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white py-24">
+            <div class="max-w-7xl mx-auto px-4 text-center">
+                <h1 class="text-4xl sm:text-5xl font-extrabold mb-6">Plataforma WebGIS de <span class="text-emerald-400">Fertilidade do Solo</span></h1>
+                <p class="text-slate-300 text-lg mb-8 max-w-2xl mx-auto">Visualização geográfica real de limites de propriedades, mapa de contornos, comparativo Lado a Lado e sincronização em nuvem.</p>
+                <button onclick="loginWithGoogle()" class="bg-origens-green hover:bg-origens-dark text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg flex items-center gap-3 mx-auto">
+                    <i class="fa-brands fa-google text-2xl"></i>
+                    <span>Acessar com Conta Google</span>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- PLATAFORMA SAAS -->
+    <div id="saas-section" class="hidden">
+        <div class="flex h-[calc(100vh-80px)] overflow-hidden">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between p-4 border-r border-slate-800">
+                <div class="space-y-6">
+                    <div class="px-3 py-2 bg-slate-800/80 rounded-xl border border-slate-700/50">
+                        <span class="text-xs font-semibold text-emerald-400 uppercase block mb-1">Usuário Conectado</span>
+                        <div id="user-display-name" class="font-bold text-sm truncate text-white">---</div>
+                        <span id="user-display-email" class="text-xs text-slate-400 block truncate">---</span>
+                    </div>
+
+                    <nav class="space-y-1 font-medium">
+                        <button onclick="switchTab('maps')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800 text-white" id="tab-maps">
+                            <i class="fa-solid fa-layer-group text-origens-green"></i><span>Visualizador GIS</span>
+                        </button>
+                        <div id="admin-only-menu" class="pt-4 border-t border-slate-800 mt-4 hidden">
+                            <span class="text-xs text-slate-500 font-bold px-4 uppercase block mb-2">Administração</span>
+                            <button onclick="switchTab('users')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-users">
+                                <i class="fa-solid fa-users-gear text-origens-accent"></i><span>Gestão de Acessos & Fazendas</span>
+                            </button>
+                        </div>
+                    </nav>
+                </div>
+                <button onclick="logout()" class="w-full bg-slate-800 text-slate-400 py-3 rounded-xl hover:bg-red-500/20 hover:text-red-400 font-semibold text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-power-off"></i><span>Sair da Conta</span>
+                </button>
+            </aside>
+
+            <!-- Conteúdo Principal WebGIS -->
+            <main class="flex-1 bg-slate-100 overflow-hidden p-6 flex flex-col">
+                <div id="content-maps" class="h-full flex gap-6">
+                    
+                    <!-- Painel Lateral de Controle -->
+                    <div class="w-80 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between overflow-y-auto">
+                        <div class="space-y-5">
+                            <h3 class="text-sm font-extrabold text-slate-900 uppercase border-b pb-2"><i class="fa-solid fa-sliders mr-2"></i>Controle do WebGIS</h3>
+                            
+                            <!-- Seleção da Fazenda -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fazenda Selecionada</label>
+                                <select id="sel-farm" onchange="changeActiveFarm()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
+                                </select>
+                            </div>
+
+                            <!-- FILTRO POR TALHÃO -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-filter text-origens-green mr-1"></i>Filtrar por Talhão</label>
+                                <select id="sel-talhao" onchange="updateGISMap()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
+                                    <option value="all">Todos os Talhões</option>
+                                </select>
+                            </div>
+
+                            <!-- UPLOAD FERRAMENTA ADMIN -->
+                            <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3">
+                                <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Perímetro e Subdivisões (.zip)</label>
+                                    <input type="file" id="file-shp" accept=".zip" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 0-10 cm (.xlsx)</label>
+                                    <input type="file" id="file-excel-0-10" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 10-20 cm (.xlsx)</label>
+                                    <input type="file" id="file-excel-10-20" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 20-40 cm (.xlsx)</label>
+                                    <input type="file" id="file-excel-20-40" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+                                </div>
+                                <button onclick="processUploadedFiles()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg text-xs shadow">
+                                    Processar & Salvar na Nuvem
+                                </button>
+                            </div>
+
+                            <!-- SELEÇÃO DE MODO DE VISUALIZAÇÃO E PROFUNDIDADE -->
+                            <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Modo de Análise</label>
+                                    <select id="sel-mode" onchange="toggleViewMode()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
+                                        <option value="single">Camada Individual</option>
+                                        <option value="sidebyside">Comparar Lado a Lado (Swipe Split)</option>
+                                    </select>
+                                </div>
+
+                                <div id="box-single-depth">
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Camada de Amostragem</label>
+                                    <select id="sel-depth" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
+                                        <option value="d0_10">Camada 0 - 10 cm</option>
+                                        <option value="d10_20">Camada 10 - 20 cm</option>
+                                        <option value="d20_40">Camada 20 - 40 cm</option>
+                                    </select>
+                                </div>
+
+                                <div id="box-diff-depth" class="hidden space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-emerald-700 mb-0.5"><i class="fa-solid fa-arrow-left mr-1"></i>Lado Esquerdo</label>
+                                        <select id="sel-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-xs text-slate-800">
+                                            <option value="d0_10">Camada 0 - 10 cm</option>
+                                            <option value="d10_20">Camada 10 - 20 cm</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-blue-700 mb-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Lado Direito</label>
+                                        <select id="sel-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-xs text-slate-800">
+                                            <option value="d10_20" selected>Camada 10 - 20 cm</option>
+                                            <option value="d20_40">Camada 20 - 40 cm</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Seleção do Parâmetro de Solo -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Parâmetro de Solo</label>
+                                <select id="sel-param" onchange="updateGISMap()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
+                                    <optgroup label="Físicos & Acidez">
+                                        <option value="Argila">Argila (g/kg)</option>
+                                        <option value="MO">Matéria Orgânica (MO)</option>
+                                        <option value="MO (%)">MO (%) - Categorias</option>
+                                        <option value="Classes de MO">Classes de MO</option>
+                                        <option value="pH_CaCl2">pH em CaCl2</option>
+                                        <option value="pH_água">pH em Água</option>
+                                    </optgroup>
+                                    <optgroup label="Macronutrientes">
+                                        <option value="P">Fósforo (P - Mehlich 1)</option>
+                                        <option value="Classes de P">Classes de P</option>
+                                        <option value="K">Potássio (K)</option>
+                                        <option value="Ca">Cálcio (Ca)</option>
+                                        <option value="Mg">Magnésio (Mg)</option>
+                                        <option value="S">Enxofre (S)</option>
+                                    </optgroup>
+                                    <optgroup label="Complexo Sortivo">
+                                        <option value="Al">Alumínio (Al)</option>
+                                        <option value="H">H + Al</option>
+                                        <option value="Sb">Soma de Bases (SB)</option>
+                                        <option value="CTC" selected>Capacidade de Troca (CTC)</option>
+                                        <option value="V%">Saturação por Bases (V%)</option>
+                                        <option value="Sat. Al">Saturação por Alumínio (m%)</option>
+                                    </optgroup>
+                                    <optgroup label="Saturações e Relações Catiônicas">
+                                        <option value="Ca%">Saturação por Cálcio (Ca%)</option>
+                                        <option value="Mg%">Saturação por Magnésio (Mg%)</option>
+                                        <option value="K%">Saturação por Potássio (K%)</option>
+                                    </optgroup>
+                                    <optgroup label="Micronutrientes">
+                                        <option value="Zn">Zinco (Zn)</option>
+                                        <option value="Cu">Cobre (Cu)</option>
+                                        <option value="Mn">Manganês (Mn)</option>
+                                        <option value="B">Boro (B)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            <!-- Controle de Camadas Vetoriais -->
+                            <div class="space-y-2 pt-2 border-t border-slate-200">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Camadas Vetoriais</span>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="chk-boundary" checked onchange="toggleLayers()" class="form-checkbox h-4 w-4 text-origens-green rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Contorno do Perímetro</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="chk-labels" checked onchange="toggleLayers()" class="form-checkbox h-4 w-4 text-origens-green rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Rótulos das Subdivisões</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="chk-values" checked onchange="toggleLayers()" class="form-checkbox h-4 w-4 text-origens-green rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Valores do Parâmetro</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Botões de Download PDF -->
+                        <div class="space-y-2 mt-4">
+                            <button id="btn-export-pdf" onclick="generatePerfectPDF()" class="w-full bg-origens-green hover:bg-origens-dark text-white font-bold p-3 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-xs">
+                                <i class="fa-solid fa-file-pdf"></i><span id="pdf-btn-text">Exportar Laudo PDF Atual</span>
+                            </button>
+                            <button id="btn-batch-pdf" onclick="generateBatchPDFs()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold p-3 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-xs">
+                                <i class="fa-solid fa-file-zipper"></i><span id="pdf-batch-btn-text">Exportar Lote de PDFs - Todas Camadas (.ZIP)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Container do Mapa -->
+                    <div id="map-container" class="flex-1 bg-white rounded-2xl border border-slate-200 relative overflow-hidden shadow-sm flex flex-col">
+                        <div id="left-map-pane" class="map-pane-split">
+                            <div id="map-left" class="w-full h-full"></div>
+                        </div>
+                        <div id="right-map-pane" class="map-pane-split">
+                            <div id="map-right" class="w-full h-full"></div>
+                        </div>
+                        <div id="split-divider">
+                            <div id="split-divider-handle"><i class="fa-solid fa-arrows-left-right"></i></div>
+                        </div>
+                        <div class="absolute bottom-6 right-6 bg-white/95 backdrop-blur p-4 rounded-xl shadow-xl border border-slate-200 z-30 min-w-[240px] max-h-[300px] overflow-y-auto">
+                            <span id="legend-title" class="text-xs font-black text-slate-900 uppercase block mb-2 border-b pb-1">Legenda QGIS</span>
+                            <div id="legend-items" class="space-y-1.5 text-xs font-semibold text-slate-700"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GESTÃO DE ACESSOS (ADMIN) -->
+                <div id="content-users" class="hidden space-y-6 overflow-y-auto h-full pr-2">
+                    <div class="flex justify-between items-center border-b pb-4">
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900">Gestão de Fazendas e Clientes</h2>
+                            <p class="text-sm text-slate-500">Cadastre propriedades e gerencie acessos por e-mail Google.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-tractor text-origens-green mr-2"></i>Cadastrar Nova Fazenda</h3>
+                            <form onsubmit="handleCreateFarm(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">ID da Fazenda (sem espaços)</label>
+                                    <input type="text" id="farm-id" required placeholder="Ex: fazenda_boa_vista" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome da Propriedade</label>
+                                    <input type="text" id="farm-name" required placeholder="Ex: Fazenda Boa Vista" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Município/UF</label>
+                                        <input type="text" id="farm-location" required placeholder="Ex: Lucas do Rio Verde - MT" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Área Total (Ha)</label>
+                                        <input type="number" step="0.1" id="farm-area" required placeholder="Ex: 850.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full bg-origens-green hover:bg-origens-dark text-white font-bold p-3 rounded-xl transition-all shadow">
+                                    Salvar Fazenda na Nuvem
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-user-plus text-origens-green mr-2"></i>Autorizar E-mail Google do Cliente</h3>
+                            <form onsubmit="handleCreateUser(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome do Produtor</label>
+                                    <input type="text" id="new-name" required placeholder="Ex: João da Silva" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-mail Google / Gmail</label>
+                                    <input type="email" id="new-email" required placeholder="Ex: joao@gmail.com" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Liberar Acesso Às Fazendas</label>
+                                    <select id="new-farm-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-bold text-slate-800">
+                                    </select>
+                                </div>
+                                <button type="submit" class="w-full bg-origens-green hover:bg-origens-dark text-white font-bold p-3 rounded-xl transition-all shadow">
+                                    Autorizar E-mail Google
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-map-location-dot text-origens-green mr-2"></i>Fazendas Cadastradas</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-100 uppercase text-slate-600 font-bold border-b border-slate-200">
+                                        <tr>
+                                            <th class="p-3">Fazenda</th>
+                                            <th class="p-3">Localização</th>
+                                            <th class="p-3">Área (Ha)</th>
+                                            <th class="p-3 text-right">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="farms-table-body" class="divide-y border-slate-200 font-medium"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-users text-origens-green mr-2"></i>Acessos Autorizados</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-100 uppercase text-slate-600 font-bold border-b border-slate-200">
+                                        <tr>
+                                            <th class="p-3">Cliente</th>
+                                            <th class="p-3">E-mail Google</th>
+                                            <th class="p-3">Fazendas Perm.</th>
+                                            <th class="p-3 text-right">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="users-table-body" class="divide-y border-slate-200 font-medium"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- CANVAS OCULTO PARA EXPORTAÇÃO DO PDF -->
+    <canvas id="pdf-render-canvas" width="1600" height="1200" style="display:none;"></canvas>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA-46x_kEHCsvaEyGO6OqpynL5ook0MKBA",
+            authDomain: "origens-webgis.firebaseapp.com",
+            projectId: "origens-webgis",
+            storageBucket: "origens-webgis.firebasestorage.app",
+            messagingSenderId: "277368735288",
+            appId: "1:277368735288:web:92b917c6eecf231e5f88cd",
+            measurementId: "G-D33YD6CTNK"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const analytics = firebase.analytics ? firebase.analytics() : null;
+
+        let mapLeft = null;
+        let mapRight = null;
+        let geojsonLayerLeft = null;
+        let geojsonLayerRight = null;
+        let currentUser = null;
+        let farmsDatabase = {};
+        let usersDatabase = [];
+        let splitPosition = 0.5;
+        let isSyncing = false;
+
+        function format1Decimal(val) {
+            if (val === null || val === undefined || isNaN(val) || val === '') return null;
+            const num = parseFloat(val);
+            if (isNaN(num)) return val;
+            return Math.round(num * 10) / 10;
+        }
+
+        async function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await auth.signInWithPopup(provider);
+                currentUser = result.user;
+                await checkUserAuthorization();
+            } catch (error) {
+                alert("Erro ao realizar login com o Google: " + error.message);
+            }
+        }
+
+        async function checkUserAuthorization() {
+            if (!currentUser) return;
+
+            const userEmail = currentUser.email.toLowerCase();
+            const adminEmails = ["tiagoritter@gmail.com", "tiago.ritter@origens.agr.br"];
+
+            let role = "client";
+            let allowedFarms = ["all"];
+
+            if (adminEmails.includes(userEmail) || userEmail.endsWith("@origens.agr.br")) {
+                role = "admin";
+            } else {
+                try {
+                    const userDoc = await db.collection("users").doc(userEmail).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        role = userData.role || "client";
+                        allowedFarms = userData.farms || [];
+                    } else {
+                        alert(`O e-mail ${userEmail} ainda não possui permissão de acesso. Entre em contato com a administração.`);
+                        await auth.signOut();
+                        return;
+                    }
+                } catch (err) {
+                    console.error("Erro ao verificar autorização:", err);
+                }
+            }
+
+            document.getElementById('landing-section').classList.add('hidden');
+            document.getElementById('saas-section').classList.remove('hidden');
+            document.getElementById('user-display-name').innerText = currentUser.displayName || currentUser.email;
+            document.getElementById('user-display-email').innerText = currentUser.email;
+
+            if (role === 'admin') {
+                document.getElementById('admin-only-menu').classList.remove('hidden');
+                document.getElementById('upload-box-admin').classList.remove('hidden');
+            } else {
+                document.getElementById('admin-only-menu').classList.add('hidden');
+                document.getElementById('upload-box-admin').classList.add('hidden');
+            }
+
+            await loadCloudData();
+            initLeafletMap();
+        }
+
+        async function loadCloudData() {
+            try {
+                const snapshot = await db.collection("farms").get();
+                farmsDatabase = {};
+                snapshot.forEach(doc => {
+                    farmsDatabase[doc.id] = doc.data();
+                });
+
+                const usersSnap = await db.collection("users").get();
+                usersDatabase = [];
+                usersSnap.forEach(doc => {
+                    usersDatabase.push({ email: doc.id, ...doc.data() });
+                });
+
+                populateFarmSelector();
+                renderAdminTables();
+            } catch (err) {
+                console.error("Erro ao carregar dados da nuvem:", err);
+            }
+        }
+
+        async function logout() {
+            await auth.signOut();
+            document.getElementById('saas-section').classList.add('hidden');
+            document.getElementById('landing-section').classList.remove('hidden');
+        }
+
+        function switchTab(tab) {
+            ['maps', 'users'].forEach(t => {
+                const el = document.getElementById(`content-${t}`);
+                const btn = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
+                if (btn) btn.classList.remove('bg-slate-800', 'text-white');
+            });
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('bg-slate-800', 'text-white');
+        }
+
+        function toggleViewMode() {
+            const mode = document.getElementById('sel-mode').value;
+            const singleBox = document.getElementById('box-single-depth');
+            const diffBox = document.getElementById('box-diff-depth');
+            const rightPane = document.getElementById('right-map-pane');
+            const leftPane = document.getElementById('left-map-pane');
+            const divider = document.getElementById('split-divider');
+
+            if (mode === 'sidebyside') {
+                singleBox.classList.add('hidden');
+                diffBox.classList.remove('hidden');
+                rightPane.style.display = 'block';
+                divider.style.display = 'block';
+                splitPosition = 0.5;
+                divider.style.left = '50%';
+                applySplitWidths();
+                initSplitSlider();
+            } else {
+                singleBox.classList.remove('hidden');
+                diffBox.classList.add('hidden');
+                rightPane.style.display = 'none';
+                divider.style.display = 'none';
+                
+                leftPane.style.width = '100%';
+                if (mapLeft) {
+                    setTimeout(() => {
+                        mapLeft.invalidateSize();
+                        updateGISMap();
+                    }, 50);
+                }
+            }
+            updateGISMap();
+        }
+
+        function initSplitSlider() {
+            const divider = document.getElementById('split-divider');
+            const container = document.getElementById('map-container');
+            let isDragging = false;
+
+            divider.onmousedown = function(e) {
+                isDragging = true;
+                e.preventDefault();
+            };
+
+            window.onmouseup = function() { isDragging = false; };
+
+            window.onmousemove = function(e) {
+                if (!isDragging) return;
+                const rect = container.getBoundingClientRect();
+                let x = e.clientX - rect.left;
+                if (x < 0) x = 0;
+                if (x > rect.width) x = rect.width;
+                
+                splitPosition = x / rect.width;
+                divider.style.left = (splitPosition * 100) + '%';
+                applySplitWidths();
+            };
+        }
+
+        function applySplitWidths() {
+            const leftPane = document.getElementById('left-map-pane');
+            const rightPane = document.getElementById('right-map-pane');
+            const pct = (splitPosition * 100).toFixed(1);
+
+            leftPane.style.width = pct + '%';
+            rightPane.style.width = (100 - pct).toFixed(1) + '%';
+
+            if (mapLeft) mapLeft.invalidateSize();
+            if (mapRight) mapRight.invalidateSize();
+        }
+
+        function populateFarmSelector() {
+            const farmSelect = document.getElementById('sel-farm');
+            farmSelect.innerHTML = '';
+
+            Object.keys(farmsDatabase).forEach(key => {
+                farmSelect.innerHTML += `<option value="${key}">${farmsDatabase[key].name} (${farmsDatabase[key].area} Ha)</option>`;
+            });
+
+            const newFarmSelect = document.getElementById('new-farm-select');
+            if(newFarmSelect) {
+                newFarmSelect.innerHTML = `<option value="all">Todas as Fazendas (Acesso Total)</option>` + 
+                    Object.keys(farmsDatabase).map(k => `<option value="${k}">${farmsDatabase[k].name}</option>`).join('');
+            }
+            populateTalhaoSelector();
+        }
+
+        function populateTalhaoSelector() {
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
+
+            const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
+            const talhaoSelect = document.getElementById('sel-talhao');
+            
+            talhaoSelect.innerHTML = '<option value="all">Todos os Talhões</option>';
+
+            if (currentGeoJSON.features && currentGeoJSON.features.length) {
+                const talhoesSet = new Set();
+                currentGeoJSON.features.forEach(f => {
+                    if (f.properties && f.properties.Talhao) {
+                        talhoesSet.add(f.properties.Talhao);
+                    }
+                });
+
+                Array.from(talhoesSet).sort().forEach(t => {
+                    talhaoSelect.innerHTML += `<option value="${t}">Talhão ${t}</option>`;
+                });
+            }
+        }
+
+        function changeActiveFarm() { 
+            const talhaoSelect = document.getElementById('sel-talhao');
+            if (talhaoSelect) talhaoSelect.value = 'all';
+            
+            populateTalhaoSelector();
+            updateGISMap(); 
+        }
+
+        // CADASTRAR FAZENDA COM TRATAMENTO DE ERROS E POPUP VISUAL
+        async function handleCreateFarm(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('farm-id');
+            const nameInput = document.getElementById('farm-name');
+            const locationInput = document.getElementById('farm-location');
+            const areaInput = document.getElementById('farm-area');
+
+            const id = idInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+            const name = nameInput.value.trim();
+            const location = locationInput.value.trim();
+            const area = parseFloat(areaInput.value);
+
+            if (!id || !name) {
+                alert("Por favor, preencha o ID e o Nome da propriedade!");
+                return;
+            }
+
+            const farmObj = { name: name, location: location, area: area, geojson: { "type": "FeatureCollection", "features": [] } };
+
+            try {
+                await db.collection("farms").doc(id).set(farmObj);
+                farmsDatabase[id] = farmObj;
+
+                populateFarmSelector();
+                renderAdminTables();
+                alert(`Fazenda ${name} cadastrada com sucesso na nuvem!`);
+                e.target.reset();
+            } catch (err) {
+                console.error("Erro ao salvar fazenda:", err);
+                alert("Falha ao salvar fazenda na nuvem! Verifique se as Regras do Firestore estão desbloqueadas no Firebase. Detalhes: " + err.message);
+            }
+        }
+
+        // AUTORIZAR USUÁRIO GOOGLE COM TRATAMENTO DE ERROS E POPUP VISUAL
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('new-name');
+            const emailInput = document.getElementById('new-email');
+            const farmSelect = document.getElementById('new-farm-select');
+
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim().toLowerCase();
+            const farmKey = farmSelect.value;
+
+            if (!email) {
+                alert("Por favor, preencha o e-mail Google!");
+                return;
+            }
+
+            const userObj = {
+                name: name,
+                role: 'client',
+                farms: farmKey === 'all' ? ['all'] : [farmKey]
+            };
+
+            try {
+                await db.collection("users").doc(email).set(userObj);
+                await loadCloudData();
+                alert(`E-mail ${email} autorizado com sucesso na nuvem!`);
+                e.target.reset();
+            } catch (err) {
+                console.error("Erro ao autorizar usuário:", err);
+                alert("Falha ao autorizar e-mail na nuvem! Verifique as Regras do Firestore. Detalhes: " + err.message);
+            }
+        }
+
+        function renderAdminTables() {
+            const farmsBody = document.getElementById('farms-table-body');
+            farmsBody.innerHTML = Object.keys(farmsDatabase).map(k => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 font-bold">${farmsDatabase[k].name}</td>
+                    <td class="p-3 text-slate-500">${farmsDatabase[k].location}</td>
+                    <td class="p-3 font-semibold text-emerald-600">${farmsDatabase[k].area} ha</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteFarm('${k}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            const usersBody = document.getElementById('users-table-body');
+            usersBody.innerHTML = usersDatabase.map((u) => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 font-bold">${u.name || 'Cliente'}</td>
+                    <td class="p-3 font-mono text-slate-600">${u.email}</td>
+                    <td class="p-3 text-slate-500">${u.farms ? u.farms.join(', ') : 'Todas'}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteUser('${u.email}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteFarm(key) {
+            if(confirm("Deseja excluir esta fazenda do banco na nuvem?")) {
+                try {
+                    await db.collection("farms").doc(key).delete();
+                    delete farmsDatabase[key];
+                    populateFarmSelector();
+                    renderAdminTables();
+                } catch (err) {
+                    alert("Erro ao excluir fazenda: " + err.message);
+                }
+            }
+        }
+
+        async function deleteUser(email) {
+            if(confirm("Deseja remover a permissão deste e-mail?")) {
+                try {
+                    await db.collection("users").doc(email).delete();
+                    await loadCloudData();
+                } catch (err) {
+                    alert("Erro ao excluir permissão: " + err.message);
+                }
+            }
+        }
+
+        function initLeafletMap() {
+            if (!mapLeft) {
+                mapLeft = L.map('map-left').setView([-12.592, -58.012], 13);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Origens Parcerias Agrícolas &copy; Esri',
+                    maxZoom: 18
+                }).addTo(mapLeft);
+
+                mapRight = L.map('map-right', { zoomControl: false }).setView([-12.592, -58.012], 13);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Esri',
+                    maxZoom: 18
+                }).addTo(mapRight);
+
+                mapLeft.on('move', function() {
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    mapRight.setView(mapLeft.getCenter(), mapLeft.getZoom(), { animate: false });
+                    isSyncing = false;
+                });
+
+                mapRight.on('move', function() {
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    mapLeft.setView(mapRight.getCenter(), mapRight.getZoom(), { animate: false });
+                    isSyncing = false;
+                });
+
+                populateTalhaoSelector();
+                updateGISMap();
+            } else {
+                setTimeout(() => {
+                    mapLeft.invalidateSize();
+                    mapRight.invalidateSize();
+                }, 200);
+            }
+        }
+
+        function getQGISRules(param) {
+            if (param === 'Argila') {
+                return [
+                    { min: 600, max: Infinity, color: '#102A83', label: '> 600 - Argilosa' },
+                    { min: 551, max: 600, color: '#2B75E2', label: '551 a 600 - Argilosa' },
+                    { min: 501, max: 550, color: '#00FFFF', label: '501 a 550 - Argilosa' },
+                    { min: 451, max: 500, color: '#265922', label: '451 a 500 - Argilosa' },
+                    { min: 401, max: 450, color: '#66A13B', label: '401 a 450 - Argilosa' },
+                    { min: 351, max: 401, color: '#BDE38B', label: '351 a 401 - Argilosa' },
+                    { min: 301, max: 350, color: '#FFF3B3', label: '301 a 350 - Média' },
+                    { min: 251, max: 300, color: '#FFFF00', label: '251 a 300 - Média' },
+                    { min: 201, max: 250, color: '#FF9999', label: '201 a 250 - Média' },
+                    { min: 151, max: 200, color: '#FF8811', label: '151 a 200 - Média' },
+                    { min: 101, max: 151, color: '#E0482B', label: '101 a 151 - Arenosa' },
+                    { min: 50, max: 100, color: '#B83227', label: '50 a 100 - Arenosa' },
+                    { min: 0, max: 49.9, color: '#5C1D1D', label: '< 50 - Arenosa' }
+                ];
+            } else if (param === 'MO' || param === 'MO (%)') {
+                return [
+                    { min: 45, max: Infinity, color: '#102A83', label: 'Nível 1 - > 45' },
+                    { min: 40, max: 45, color: '#265922', label: 'Nível 2 - 40 - 45' },
+                    { min: 35, max: 39.9, color: '#32D827', label: 'Nível 3 - 35 - 40' },
+                    { min: 30, max: 34.9, color: '#DCF5AA', label: 'Nível 4 - 30 - 35' },
+                    { min: 25, max: 29.9, color: '#FFF3B3', label: 'Nível 5 - 25 - 30' },
+                    { min: 20, max: 24.9, color: '#FFFF00', label: 'Nível 6 - 20 - 25' },
+                    { min: 15, max: 19.9, color: '#FF8811', label: 'Nível 7 - 15 - 20' },
+                    { min: 10, max: 14.9, color: '#E0482B', label: 'Nível 8 - 10 - 15' },
+                    { min: 0, max: 9.9, color: '#801A1A', label: 'Nível 9 - < 10' }
+                ];
+            } else if (param === 'Classes de MO') {
+                return [
+                    { min: 1, max: 1, color: '#102A83', label: 'Alta' },
+                    { min: 2, max: 2, color: '#265922', label: 'Adequada' },
+                    { min: 3, max: 3, color: '#FF8811', label: 'Média' },
+                    { min: 4, max: 4, color: '#801A1A', label: 'Baixa' }
+                ];
+            } else if (param === 'Classes de P') {
+                return [
+                    { min: 5, max: 5, color: '#2B75E2', label: 'Classe 5 - Alto' },
+                    { min: 4, max: 4, color: '#265922', label: 'Classe 4 - Adequado' },
+                    { min: 3, max: 3, color: '#FFFF00', label: 'Classe 3 - Médio' },
+                    { min: 2, max: 2, color: '#FF8811', label: 'Classe 2 - Baixo' },
+                    { min: 1, max: 1, color: '#801A1A', label: 'Classe 1 - Muito Baixo' }
+                ];
+            } else if (param === 'pH_água') {
+                return [
+                    { min: 6.6, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - > 6.6' },
+                    { min: 6.3, max: 6.6, color: '#FFF0AA', label: 'Nível 2 - 6.3 - 6.6' },
+                    { min: 6.1, max: 6.29, color: '#FFE16B', label: 'Nível 3 - 6.1 - 6.3' },
+                    { min: 5.8, max: 6.09, color: '#FFC83B', label: 'Nível 4 - 5.8 - 6.0' },
+                    { min: 5.5, max: 5.79, color: '#FF961F', label: 'Nível 5 - 5.5 - 5.7' },
+                    { min: 5.2, max: 5.49, color: '#E65D0F', label: 'Nível 6 - 5.2 - 5.4' },
+                    { min: 5.0, max: 5.19, color: '#C83700', label: 'Nível 7 - 5.0 a 5.1' },
+                    { min: 0, max: 4.99, color: '#802000', label: 'Nível 8 - < 4.9' }
+                ];
+            } else if (param === 'pH_CaCl2') {
+                return [
+                    { min: 6.0, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - > 6.0' },
+                    { min: 5.7, max: 6.0, color: '#FFF5AA', label: 'Nível 2 - 5.7 - 6.0' },
+                    { min: 5.4, max: 5.69, color: '#FFE16B', label: 'Nível 3 - 5.4 - 5.6' },
+                    { min: 5.1, max: 5.39, color: '#FFC83B', label: 'Nível 4 - 5.1 - 5.3' },
+                    { min: 4.8, max: 5.09, color: '#FF961F', label: 'Nível 5 - 4.8 - 5.0' },
+                    { min: 4.5, max: 4.79, color: '#E65D0F', label: 'Nível 6 - 4.5 - 4.7' },
+                    { min: 4.2, max: 4.49, color: '#C83700', label: 'Nível 7 - 4.2 - 4.4' },
+                    { min: 0, max: 4.19, color: '#802000', label: 'Nível 8 - < 4.2' }
+                ];
+            } else if (param === 'CTC') {
+                return [
+                    { min: 9.0, max: Infinity, color: '#2B75E2', label: 'Nível 1 - > 9' },
+                    { min: 7.6, max: 9.0, color: '#265922', label: 'Nível 2 - 7.6 a 9' },
+                    { min: 6.1, max: 7.59, color: '#32D827', label: 'Nível 3 - 6.1 a 7.5' },
+                    { min: 4.6, max: 6.09, color: '#FF961F', label: 'Nível 4 - 4.6 a 6' },
+                    { min: 3.0, max: 4.59, color: '#E0482B', label: 'Nível 5 - 3 a 4.5' },
+                    { min: 0, max: 2.99, color: '#802000', label: 'Nível 6 - < 3' }
+                ];
+            } else if (param === 'V%') {
+                return [
+                    { min: 74, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - > 74' },
+                    { min: 64, max: 74, color: '#FFF5AA', label: 'Nível 2 - 64 a 74' },
+                    { min: 54, max: 63.9, color: '#FFE16B', label: 'Nível 3 - 54 a 64' },
+                    { min: 44, max: 53.9, color: '#FFC83B', label: 'Nível 4 - 44 a 54' },
+                    { min: 34, max: 43.9, color: '#FF961F', label: 'Nível 5 - 34 a 44' },
+                    { min: 24, max: 33.9, color: '#E65D0F', label: 'Nível 6 - 24 a 34' },
+                    { min: 15, max: 23.9, color: '#C83700', label: 'Nível 7 - 15 a 24' },
+                    { min: 0, max: 14.9, color: '#802000', label: 'Nível 8 - < 15' }
+                ];
+            } else if (param === 'Al') {
+                return [
+                    { min: 0.41, max: Infinity, color: '#802000', label: 'Nível 4 - >0.4' },
+                    { min: 0.31, max: 0.40, color: '#FF961F', label: 'Nível 3 - 0.3 a 0.4' },
+                    { min: 0.10, max: 0.30, color: '#265922', label: 'Nível 2 - 0.1 a 0.3' },
+                    { min: 0.00, max: 0.09, color: '#2B75E2', label: 'Nível 1 - <0.1' }
+                ];
+            } else if (param === 'Sat. Al') {
+                return [
+                    { min: 40.1, max: Infinity, color: '#802000', label: 'Nível 6 - > 41%' },
+                    { min: 30.1, max: 40.0, color: '#E65D0F', label: 'Nível 5 - 31 a 40 %' },
+                    { min: 20.1, max: 30.0, color: '#FF961F', label: 'Nível 4 - 21 a 30 %' },
+                    { min: 10.1, max: 20.0, color: '#FFC83B', label: 'Nível 3 - 11 a 20 %' },
+                    { min: 0.1, max: 10.0, color: '#FFE16B', label: 'Nível 2 - 01 a 10 %' },
+                    { min: 0.0, max: 0.0, color: '#FFFFE0', label: 'Nível 1 - 0' }
+                ];
+            } else if (param === 'P') {
+                return [
+                    { min: 18.1, max: Infinity, color: '#2B75E2', label: 'Alto' },
+                    { min: 12.1, max: 18.0, color: '#265922', label: 'Adequado' },
+                    { min: 8.1, max: 12.0, color: '#FFFF00', label: 'Médio' },
+                    { min: 3.1, max: 8.0, color: '#FF8811', label: 'Baixo' },
+                    { min: 0, max: 3.0, color: '#801A1A', label: 'Muito Baixo' }
+                ];
+            } else {
+                return [
+                    { min: 3.0, max: Infinity, color: '#265922', label: 'Nível Adequado' },
+                    { min: 1.5, max: 2.99, color: '#FFFF00', label: 'Nível Médio' },
+                    { min: 0, max: 1.49, color: '#E0482B', label: 'Nível Baixo' }
+                ];
+            }
+        }
+
+        function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
+            const showBoundary = document.getElementById('chk-boundary').checked;
+            const showLabels = document.getElementById('chk-labels').checked;
+            const showValues = document.getElementById('chk-values').checked;
+            const selectedTalhao = document.getElementById('sel-talhao').value;
+
+            return L.geoJSON(currentGeoJSON, {
+                filter: function(feature) {
+                    if (selectedTalhao === 'all') return true;
+                    return feature.properties && feature.properties.Talhao === selectedTalhao;
+                },
+                style: function(feature) {
+                    const depthData = feature.properties[depthKey] || {};
+                    const rawVal = depthData[param];
+                    const val = format1Decimal(rawVal);
+
+                    let color = '#94a3b8';
+                    if (val !== null && val !== undefined && !isNaN(val)) {
+                        const matchedRule = rules.find(r => val >= r.min && val <= r.max);
+                        if (matchedRule) color = matchedRule.color;
+                    }
+
+                    return {
+                        fillColor: color,
+                        fillOpacity: 0.85,
+                        color: showBoundary ? '#1d4ed8' : 'transparent',
+                        weight: showBoundary ? 1.5 : 0
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties;
+                    const depthData = props[depthKey] || {};
+                    const rawVal = depthData[param];
+                    const val = format1Decimal(rawVal);
+                    const displayVal = (val !== null && val !== undefined) ? val : 'N/A';
+
+                    let popupContent = `
+                        <div class="p-2">
+                            <span class="font-extrabold text-sm text-slate-900 block border-b pb-1">${props.Subs} (Talhão ${props.Talhao})</span>
+                            <span class="text-xs text-slate-600 block mt-1">Área: <b>${format1Decimal(props.Area)} ha</b></span>
+                            <span class="text-xs text-slate-800 font-bold block mt-1">${param}: <span class="text-emerald-600">${displayVal}</span></span>
+                        </div>
+                    `;
+                    layer.bindPopup(popupContent);
+
+                    let labelContent = "";
+                    if (showLabels && showValues) {
+                        labelContent = `${props.Subs}: ${displayVal}`;
+                    } else if (showLabels) {
+                        labelContent = `${props.Subs}`;
+                    } else if (showValues) {
+                        labelContent = `${displayVal}`;
+                    }
+
+                    if (labelContent !== "") {
+                        layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'bg-slate-900/80 text-white font-bold text-[10px] px-1 py-0.5 rounded shadow text-center' });
+                    }
+                }
+            });
+        }
+
+        function updateGISMap() {
+            if (!mapLeft) return;
+
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const farmObj = farmsDatabase[selectedFarmKey];
+            const currentGeoJSON = farmObj ? farmObj.geojson : { "type": "FeatureCollection", "features": [] };
+
+            const mode = document.getElementById('sel-mode').value;
+            const param = document.getElementById('sel-param').value;
+            const rules = getQGISRules(param);
+
+            if (geojsonLayerLeft) mapLeft.removeLayer(geojsonLayerLeft);
+            if (geojsonLayerRight) mapRight.removeLayer(geojsonLayerRight);
+
+            if (!currentGeoJSON.features || !currentGeoJSON.features.length) {
+                const legendTitle = document.getElementById('legend-title');
+                const legendItems = document.getElementById('legend-items');
+                legendTitle.innerText = `${farmObj ? farmObj.name : 'Fazenda'}`;
+                legendItems.innerHTML = `<span class="text-amber-600 font-bold block text-xs">Nenhum projeto importado para esta fazenda. Envie o Shapefile (.zip).</span>`;
+                return;
+            }
+
+            if (mode === 'sidebyside') {
+                const depthA = document.getElementById('sel-depth-a').value;
+                const depthB = document.getElementById('sel-depth-b').value;
+
+                geojsonLayerLeft = createGeoJsonLayer(currentGeoJSON, depthA, param, rules).addTo(mapLeft);
+                geojsonLayerRight = createGeoJsonLayer(currentGeoJSON, depthB, param, rules).addTo(mapRight);
+
+                applySplitWidths();
+
+                if (geojsonLayerLeft.getBounds().isValid()) {
+                    mapLeft.fitBounds(geojsonLayerLeft.getBounds());
+                    mapRight.fitBounds(geojsonLayerLeft.getBounds());
+                }
+            } else {
+                const depth = document.getElementById('sel-depth').value;
+                geojsonLayerLeft = createGeoJsonLayer(currentGeoJSON, depth, param, rules).addTo(mapLeft);
+                
+                if (geojsonLayerLeft.getBounds().isValid()) {
+                    mapLeft.fitBounds(geojsonLayerLeft.getBounds());
+                }
+            }
+
+            const legendTitle = document.getElementById('legend-title');
+            const legendItems = document.getElementById('legend-items');
+
+            if (mode === 'sidebyside') {
+                const textA = document.getElementById('sel-depth-a').value.replace('d', '').replace('_', '-');
+                const textB = document.getElementById('sel-depth-b').value.replace('d', '').replace('_', '-');
+                legendTitle.innerText = `${param} | Split: ${textA}cm vs ${textB}cm`;
+            } else {
+                const depth = document.getElementById('sel-depth').value.replace('d', '').replace('_', '-');
+                legendTitle.innerText = `${param} (${depth})cm`;
+            }
+
+            let legendHTML = rules.map(r => `
+                <div class="flex items-center gap-2">
+                    <div class="w-3.5 h-3.5 rounded border border-slate-300 shadow-sm" style="background-color: ${r.color}"></div>
+                    <span>${r.label}</span>
+                </div>
+            `).join('');
+
+            legendHTML += `
+                <div class="flex items-center gap-2 border-t pt-1 mt-1">
+                    <div class="w-3.5 h-3.5 rounded border border-slate-300 bg-slate-400"></div>
+                    <span>Sem Amostragem</span>
+                </div>
+            `;
+
+            legendItems.innerHTML = legendHTML;
+        }
+
+        function toggleLayers() { updateGISMap(); }
+
+        function drawCanvasForParam(param, depthConfig, farmInfo, rules) {
+            const canvas = document.getElementById('pdf-render-canvas');
+            const ctx = canvas.getContext('2d');
+            const currentGeoJSON = farmInfo.geojson;
+            const showLabels = document.getElementById('chk-labels').checked;
+            const showValues = document.getElementById('chk-values').checked;
+            const selectedTalhao = document.getElementById('sel-talhao').value;
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "#2E7D32";
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.textAlign = "left";
+            ctx.fillText("ORIGENS Parcerias Agrícolas | Brasnorte - MT", 50, 60);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 26px Helvetica, Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(`${param.toUpperCase()} - CARACTERIZAÇÃO DE SOLO`, 800, 60);
+
+            ctx.fillStyle = "#2E7D32";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.fillText(`CAMADA: ${depthConfig.titleText} | ${farmInfo.name.toUpperCase()}`, 800, 95);
+
+            ctx.textAlign = "left";
+
+            if (currentGeoJSON.features && currentGeoJSON.features.length) {
+                let filteredFeatures = currentGeoJSON.features;
+                if (selectedTalhao !== 'all') {
+                    filteredFeatures = filteredFeatures.filter(f => f.properties && f.properties.Talhao === selectedTalhao);
+                }
+
+                let allPts = [];
+                filteredFeatures.forEach(f => {
+                    f.geometry.coordinates[0].forEach(pt => allPts.push(pt));
+                });
+
+                if (allPts.length) {
+                    const minX = Math.min(...allPts.map(p => p[0]));
+                    const maxX = Math.max(...allPts.map(p => p[0]));
+                    const minY = Math.min(...allPts.map(p => p[1]));
+                    const maxY = Math.max(...allPts.map(p => p[1]));
+
+                    const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
+
+                    filteredFeatures.forEach(f => {
+                        const depthData = f.properties[depthConfig.key] || {};
+                        const rawVal = depthData[param];
+                        const val = format1Decimal(rawVal);
+
+                        let fillColor = "#94a3b8";
+                        if (val !== null && val !== undefined && !isNaN(val)) {
+                            const matchedRule = rules.find(r => val >= r.min && val <= r.max);
+                            if (matchedRule) fillColor = matchedRule.color;
+                        }
+
+                        ctx.beginPath();
+                        const coords = f.geometry.coordinates[0];
+
+                        let sumPx = 0, sumPy = 0;
+                        coords.forEach((pt, index) => {
+                            const px = mapX + ((pt[0] - minX) / (maxX - minX)) * mapW;
+                            const py = mapY + ((maxY - pt[1]) / (maxY - minY)) * mapH;
+                            sumPx += px;
+                            sumPy += py;
+
+                            if (index === 0) ctx.moveTo(px, py);
+                            else ctx.lineTo(px, py);
+                        });
+                        ctx.closePath();
+
+                        ctx.fillStyle = fillColor;
+                        ctx.fill();
+                        ctx.strokeStyle = "#1d4ed8";
+                        ctx.lineWidth = 1.2;
+                        ctx.stroke();
+
+                        const cx = sumPx / coords.length;
+                        const cy = sumPy / coords.length;
+
+                        let pdfLabel = "";
+                        if (showLabels && showValues) {
+                            pdfLabel = `${f.properties.Subs}: ${val !== null && val !== undefined ? val : 'N/A'}`;
+                        } else if (showLabels) {
+                            pdfLabel = f.properties.Subs;
+                        } else if (showValues) {
+                            pdfLabel = `${val !== null && val !== undefined ? val : 'N/A'}`;
+                        }
+
+                        if (pdfLabel !== "") {
+                            ctx.fillStyle = "#000000";
+                            ctx.font = "bold 9px Helvetica, Arial";
+                            ctx.textAlign = "center";
+                            ctx.fillText(pdfLabel, cx, cy);
+                            ctx.textAlign = "left";
+                        }
+                    });
+                }
+            }
+
+            const legX = 1180, legY = 130;
+            ctx.fillStyle = "#F8FAFC";
+            ctx.fillRect(legX, legY, 370, 900);
+            ctx.strokeStyle = "#CBD5E1";
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(legX, legY, 370, 900);
+
+            ctx.fillStyle = "#0F172A";
+            ctx.font = "bold 20px Helvetica, Arial";
+            ctx.fillText("LEGENDA DE NÍVEIS", legX + 15, legY + 35);
+
+            let currY = legY + 70;
+            rules.forEach(r => {
+                ctx.fillStyle = r.color;
+                ctx.fillRect(legX + 15, currY - 16, 22, 22);
+                ctx.strokeStyle = "#64748B";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(legX + 15, currY - 16, 22, 22);
+
+                ctx.fillStyle = "#334155";
+                ctx.font = "bold 14px Helvetica, Arial";
+                ctx.fillText(r.label, legX + 48, currY);
+                currY += 38;
+            });
+
+            ctx.fillStyle = "#64748B";
+            ctx.font = "14px Helvetica, Arial";
+            ctx.fillText("www.origens.agr.br", 50, canvas.height - 35);
+            ctx.textAlign = "right";
+            ctx.fillText("Escala 1:26.000 | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
+
+            return canvas.toDataURL('image/jpeg', 0.98);
+        }
+
+        function generatePerfectPDF() {
+            const btnText = document.getElementById('pdf-btn-text');
+            btnText.innerText = "Gerando PDF...";
+
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
+            const depthKey = document.getElementById('sel-depth').value;
+            const param = document.getElementById('sel-param').value;
+            const depthText = depthKey.replace('d', '').replace('_', '-') + ' cm';
+            const rules = getQGISRules(param);
+
+            const depthConfig = { key: depthKey, titleText: `${depthText}` };
+            const imgData = drawCanvasForParam(param, depthConfig, farmInfo, rules);
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+            pdf.save(`Laudo_${param}_${depthText.replace(/\s+/g, '_')}_${farmInfo.name.replace(/\s+/g, '_')}.pdf`);
+
+            btnText.innerText = "Exportar Laudo PDF Atual";
+        }
+
+        async function generateBatchPDFs() {
+            const batchBtnText = document.getElementById('pdf-batch-btn-text');
+            batchBtnText.innerText = "Processando Lote...";
+
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
+
+            const depthsList = [
+                { key: 'd0_10', titleText: '0-10 cm' },
+                { key: 'd10_20', titleText: '10-20 cm' },
+                { key: 'd20_40', titleText: '20-40 cm' }
+            ];
+
+            const paramsList = [
+                'Argila', 'MO', 'Classes de MO', 'pH_CaCl2', 'pH_água',
+                'P', 'Classes de P', 'K', 'Ca', 'Mg', 'S',
+                'Al', 'H', 'Sb', 'CTC', 'V%', 'Sat. Al',
+                'Ca%', 'Mg%', 'K%', 'Zn', 'Cu', 'Mn', 'B'
+            ];
+
+            const zip = new JSZip();
+            const { jsPDF } = window.jspdf;
+
+            let totalFiles = paramsList.length * depthsList.length;
+            let count = 0;
+
+            for (let d = 0; d < depthsList.length; d++) {
+                const depthObj = depthsList[d];
+                for (let i = 0; i < paramsList.length; i++) {
+                    const paramName = paramsList[i];
+                    count++;
+                    batchBtnText.innerText = `Gerando (${count}/${totalFiles}) ${paramName} (${depthObj.titleText})...`;
+
+                    const rules = getQGISRules(paramName);
+                    const imgData = drawCanvasForParam(paramName, depthObj, farmInfo, rules);
+
+                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+
+                    const pdfBlob = pdf.output('blob');
+                    const fileName = `Laudo_${paramName}_${depthObj.titleText.replace(/\s+/g, '')}.pdf`;
+                    zip.file(fileName, pdfBlob);
+
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+
+            batchBtnText.innerText = "Compactando ZIP...";
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = `Lote_Completo_Laudos_${farmInfo.name.replace(/\s+/g, '_')}.zip`;
+            link.click();
+
+            batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
+        }
+
+        // LEITURA FLEXÍVEL DE SHAPEFILE EM ZIP (INCLUINDO SUBPASTAS)
+        function processUploadedFiles() {
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const shpInput = document.getElementById('file-shp');
+            const excel010 = document.getElementById('file-excel-0-10');
+            const excel1020 = document.getElementById('file-excel-10-20');
+            const excel2040 = document.getElementById('file-excel-20-40');
+
+            if (!shpInput.files.length) {
+                alert('Por favor, selecione o arquivo Shapefile em .ZIP!');
+                return;
+            }
+
+            const file = shpInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                shp(e.target.result).then(async function (geojson) {
+                    // Tratar caso o ZIP retorne um Array de camadas
+                    let finalGeoJSON = Array.isArray(geojson) ? geojson[0] : geojson;
+
+                    const parseExcel = (fileInput, depthKey) => {
+                        return new Promise((resolve) => {
+                            if (fileInput.files.length) {
+                                const exReader = new FileReader();
+                                exReader.onload = function(exEvt) {
+                                    const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
+                                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                                    const data = XLSX.utils.sheet_to_json(sheet);
+                                    
+                                    const dataMap = {};
+                                    data.forEach(r => { 
+                                        if(r.Subs) {
+                                            Object.keys(r).forEach(k => {
+                                                if (typeof r[k] === 'number') {
+                                                    r[k] = format1Decimal(r[k]);
+                                                }
+                                            });
+                                            dataMap[r.Subs] = r;
+                                        } 
+                                    });
+
+                                    finalGeoJSON.features.forEach(f => {
+                                        const sub = f.properties ? f.properties.Subs : null;
+                                        if (sub && dataMap[sub]) {
+                                            f.properties[depthKey] = dataMap[sub];
+                                        }
+                                    });
+                                    resolve();
+                                };
+                                exReader.readAsBinaryString(fileInput.files[0]);
+                            } else {
+                                resolve();
+                            }
+                        });
+                    };
+
+                    await parseExcel(excel010, 'd0_10');
+                    await parseExcel(excel1020, 'd10_20');
+                    await parseExcel(excel2040, 'd20_40');
+
+                    farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
+
+                    try {
+                        await db.collection("farms").doc(selectedFarmKey).set(farmsDatabase[selectedFarmKey]);
+                        populateTalhaoSelector();
+                        updateGISMap();
+                        alert(`Shapefile e planilhas processados e salvos com sucesso na nuvem!`);
+                    } catch (err) {
+                        console.error("Erro ao salvar no Firestore:", err);
+                        alert("Erro ao salvar projeto na nuvem: " + err.message);
+                    }
+                }).catch(err => {
+                    console.error("Erro na leitura do ZIP:", err);
+                    alert('Erro ao carregar o .zip. Verifique se o ZIP contém os arquivos .shp, .dbf, .shx e .prj.');
+                });
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+    </script>
+</body>
+</html>
