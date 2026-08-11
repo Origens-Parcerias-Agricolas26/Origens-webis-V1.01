@@ -313,7 +313,6 @@
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <!-- FORMULÁRIO CADASTRAR NOVA FAZENDA -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-tractor text-origens-green mr-2"></i>Cadastrar Nova Fazenda</h3>
                             <form onsubmit="handleCreateFarm(event)" class="space-y-4">
@@ -345,7 +344,6 @@
                             </form>
                         </div>
 
-                        <!-- AUTORIZAÇÃO DE CLIENTE COM SELEÇÃO MÚLTIPLA DE FAZENDAS -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-user-plus text-origens-green mr-2"></i>Autorizar E-mail Google do Cliente</h3>
                             <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -448,7 +446,6 @@
         let splitPosition = 0.5;
         let isSyncing = false;
 
-        // FORMATADOR NUMÉRICO COM TRATAMENTO RIGOROSO DE VÍRGULAS E STRINGS
         function format1Decimal(val) {
             if (val === null || val === undefined || val === '') return null;
             const str = String(val).replace(',', '.').trim();
@@ -465,7 +462,6 @@
             return str;
         }
 
-        // HIGIENIZA E CALCULA PARÂMETROS DERIVADOS DO SOLO (CTC, SB, V%, Sat. Al)
         function sanitizeAndCalculateSoilData(row) {
             if (!row || typeof row !== 'object') return {};
             const r = { ...row };
@@ -509,12 +505,29 @@
             return r;
         }
 
-        // BUSCA DE ATRIBUTOS COM SUPORTE FLEXÍVEL A MÚLTIPLAS SAFRAS
+        // BUSCA MULTI-SAFRA DE PROFUNDIDADE COM VARREDURA HISTÓRICA COMPLETA
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
             const props = feature.properties;
 
+            // 1. Procurar no Dicionário safras_historico
+            if (props.safras_historico && typeof props.safras_historico === 'object') {
+                if (selectedSafra && selectedSafra !== 'all') {
+                    if (props.safras_historico[selectedSafra] && props.safras_historico[selectedSafra][depthKey]) {
+                        return props.safras_historico[selectedSafra][depthKey];
+                    }
+                } else {
+                    const availableSafras = Object.keys(props.safras_historico).sort().reverse();
+                    for (const s of availableSafras) {
+                        if (props.safras_historico[s] && props.safras_historico[s][depthKey]) {
+                            return props.safras_historico[s][depthKey];
+                        }
+                    }
+                }
+            }
+
+            // 2. Procurar no Dicionário safras antigo
             if (props.safras && typeof props.safras === 'object') {
                 if (selectedSafra && selectedSafra !== 'all') {
                     if (props.safras[selectedSafra] && props.safras[selectedSafra][depthKey]) {
@@ -530,6 +543,7 @@
                 }
             }
 
+            // 3. Procurar por chaves diretas (ex: d0_10_2026)
             if (selectedSafra && selectedSafra !== 'all') {
                 const safraKey = depthKey + '_' + selectedSafra;
                 if (props[safraKey]) return props[safraKey];
@@ -788,7 +802,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (VARREDURA MULTI-ESTRUTURA)
+        // POPULAR SELETOR DE ANO SAFRA
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -802,10 +816,12 @@
 
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
                 const safrasSet = new Set();
-                const depths = ['d0_10', 'd10_20', 'd20_40'];
 
                 currentGeoJSON.features.forEach(f => {
                     if (f.properties) {
+                        if (f.properties.safras_historico && typeof f.properties.safras_historico === 'object') {
+                            Object.keys(f.properties.safras_historico).forEach(s => safrasSet.add(s));
+                        }
                         if (f.properties.safras && typeof f.properties.safras === 'object') {
                             Object.keys(f.properties.safras).forEach(s => safrasSet.add(s));
                         }
@@ -814,15 +830,10 @@
                         if (directSafra) safrasSet.add(directSafra);
 
                         Object.keys(f.properties).forEach(pKey => {
-                            depths.forEach(d => {
-                                if (pKey === d || pKey.startsWith(d + '_')) {
-                                    const obj = f.properties[pKey];
-                                    if (obj && typeof obj === 'object') {
-                                        const val = extractSafra(obj['Ano Safra'] || obj['AnoSafra'] || obj['Safra'] || obj['ANO_SAFRA']);
-                                        if (val) safrasSet.add(val);
-                                    }
-                                }
-                            });
+                            if (typeof f.properties[pKey] === 'object' && f.properties[pKey] !== null) {
+                                const val = extractSafra(f.properties[pKey]['Ano Safra'] || f.properties[pKey]['AnoSafra'] || f.properties[pKey]['Safra'] || f.properties[pKey]['ANO_SAFRA']);
+                                if (val) safrasSet.add(val);
+                            }
                         });
                     }
                 });
@@ -1194,6 +1205,7 @@
             }
         }
 
+        // DESENHAR CAMADA GEOJSON COM SUPORTE A MÚLTIPLAS SAFRAS
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1551,7 +1563,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA MULTI-SAFRA DE PLANILHAS EXCEL (PRESERVA HISTÓRICO DE Safras)
+        // LEITURA E ARMAZENAMENTO MULTI-SAFRA DE PLANILHAS
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1595,7 +1607,7 @@
                                         if (sub && dataMap[sub]) {
                                             const rows = dataMap[sub];
                                             
-                                            f.properties.safras = f.properties.safras || {};
+                                            f.properties.safras_historico = f.properties.safras_historico || {};
 
                                             rows.forEach(r => {
                                                 const safraVal = extractSafra(r['Ano Safra'] || r['AnoSafra'] || r['Safra'] || r['ANO_SAFRA'] || r['Ano'] || r['AS']);
@@ -1607,8 +1619,8 @@
                                                 else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
 
                                                 if (safraVal) {
-                                                    f.properties.safras[safraVal] = f.properties.safras[safraVal] || {};
-                                                    f.properties.safras[safraVal][targetDepthKey] = r;
+                                                    f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
+                                                    f.properties.safras_historico[safraVal][targetDepthKey] = r;
                                                     f.properties[targetDepthKey + '_' + safraVal] = r;
                                                 }
                                                 
