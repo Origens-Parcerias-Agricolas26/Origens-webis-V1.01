@@ -495,15 +495,24 @@
                 farmsDatabase = {};
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    // Desserializa a string geojsonJson se existir
+                    let parsedGeojson = { "type": "FeatureCollection", "features": [] };
+
                     if (data.geojsonJson) {
                         try {
-                            data.geojson = JSON.parse(data.geojsonJson);
+                            parsedGeojson = typeof data.geojsonJson === 'string' ? JSON.parse(data.geojsonJson) : data.geojsonJson;
                         } catch(e) {
-                            data.geojson = { "type": "FeatureCollection", "features": [] };
+                            console.error("Erro ao reconstituir GeoJSON:", e);
                         }
+                    } else if (data.geojson) {
+                        parsedGeojson = data.geojson;
                     }
-                    farmsDatabase[doc.id] = data;
+
+                    farmsDatabase[doc.id] = {
+                        name: data.name,
+                        location: data.location,
+                        area: data.area,
+                        geojson: parsedGeojson
+                    };
                 });
 
                 const usersSnap = await db.collection("users").get();
@@ -654,6 +663,7 @@
             updateGISMap(); 
         }
 
+        // CADASTRAR FAZENDA LIMPANDO DADOS COMPATÍVEIS COM FIRESTORE
         async function handleCreateFarm(e) {
             e.preventDefault();
             const idInput = document.getElementById('farm-id');
@@ -671,16 +681,17 @@
                 return;
             }
 
-            const farmObj = { 
+            const initialGeoJSON = { "type": "FeatureCollection", "features": [] };
+            const payloadToSave = { 
                 name: name, 
                 location: location, 
                 area: area, 
-                geojsonJson: JSON.stringify({ "type": "FeatureCollection", "features": [] }) 
+                geojsonJson: JSON.stringify(initialGeoJSON) 
             };
 
             try {
-                await db.collection("farms").doc(id).set(farmObj);
-                farmsDatabase[id] = { name: name, location: location, area: area, geojson: { "type": "FeatureCollection", "features": [] } };
+                await db.collection("farms").doc(id).set(payloadToSave);
+                farmsDatabase[id] = { name: name, location: location, area: area, geojson: initialGeoJSON };
 
                 populateFarmSelector();
                 renderAdminTables();
@@ -1286,7 +1297,6 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // PROCESSAR UPLOAD E SALVAR NO FIRESTORE COM CONVERSÃO DE STRING JSON (EVITA NESTED ARRAYS)
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1348,7 +1358,6 @@
 
                     farmsDatabase[selectedFarmKey].geojson = finalGeoJSON;
 
-                    // CONVERTE O GEOJSON EM STRING JSON PARA EVITAR O ERRO DE NESTED ARRAYS NO FIRESTORE
                     const payloadToSave = {
                         name: farmsDatabase[selectedFarmKey].name,
                         location: farmsDatabase[selectedFarmKey].location,
