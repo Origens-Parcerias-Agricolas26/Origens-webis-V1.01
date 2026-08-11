@@ -102,6 +102,7 @@
                         <span class="text-xs font-semibold text-emerald-400 uppercase block mb-1">Usuário Conectado</span>
                         <div id="user-display-name" class="font-bold text-sm truncate text-white">---</div>
                         <span id="user-display-email" class="text-xs text-slate-400 block truncate">---</span>
+                        <span id="user-display-role" class="inline-block mt-1 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-slate-700 text-slate-300">Modo Leitura</span>
                     </div>
 
                     <nav class="space-y-1 font-medium">
@@ -153,11 +154,10 @@
                                 </select>
                             </div>
 
-                            <!-- UPLOAD FERRAMENTA ADMIN COM DEDICAÇÃO DE SAFRA -->
-                            <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3">
+                            <!-- UPLOAD FERRAMENTA ADMIN (VISÍVEL APENAS PARA ADMINISTRATIVO MASTER) -->
+                            <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3 hidden">
                                 <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
                                 
-                                <!-- SELETOR DE SAFRA PARA O UPLOAD -->
                                 <div>
                                     <label class="block text-[11px] font-bold text-amber-900 mb-1">Ano Safra das Planilhas</label>
                                     <select id="upload-safra-year" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-extrabold text-xs text-slate-900">
@@ -316,7 +316,7 @@
                     </div>
                 </div>
 
-                <!-- GESTÃO DE ACESSOS (ADMIN) -->
+                <!-- GESTÃO DE ACESSOS (ADMINISTRATIVO MASTER) -->
                 <div id="content-users" class="hidden space-y-6 overflow-y-auto h-full pr-2">
                     <div class="flex justify-between items-center border-b pb-4">
                         <div>
@@ -467,7 +467,6 @@
             return Math.round(num * 10) / 10;
         }
 
-        // EXTRATOR ESTRITO DE ANO SAFRA
         function extractSafra(rowObj) {
             if (!rowObj) return null;
             if (typeof rowObj !== 'object') {
@@ -539,7 +538,6 @@
             return r;
         }
 
-        // BUSCA MULTI-SAFRA
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
@@ -607,17 +605,24 @@
             }
         }
 
+        // VERIFICAÇÃO DE PERMISSÃO: APENAS ADMINISTRADORES EXPLÍCITOS PODEM EDITAR/ENVIAR PROJETOS
         async function checkUserAuthorization() {
             if (!currentUser) return;
 
             const userEmail = currentUser.email.toLowerCase();
+            
+            // E-Mails Administrativos Master com Permissão Total de Edição
             const adminEmails = ["tiagoritter@gmail.com", "tiago.ritter@origens.agr.br"];
 
             currentUserRole = "client";
             currentUserAllowedFarms = ["all"];
 
-            if (adminEmails.includes(userEmail) || userEmail.endsWith("@origens.agr.br")) {
+            if (adminEmails.includes(userEmail)) {
                 currentUserRole = "admin";
+            } else if (userEmail.endsWith("@origens.agr.br")) {
+                // Outros e-mails do mesmo domínio entram como MODO LEITURA por padrão
+                currentUserRole = "client";
+                currentUserAllowedFarms = ["all"];
             } else {
                 try {
                     const userDoc = await db.collection("users").doc(userEmail).get();
@@ -640,10 +645,15 @@
             document.getElementById('user-display-name').innerText = currentUser.displayName || currentUser.email;
             document.getElementById('user-display-email').innerText = currentUser.email;
 
+            const roleBadge = document.getElementById('user-display-role');
             if (currentUserRole === 'admin') {
+                roleBadge.innerText = "Modo Edição (Admin)";
+                roleBadge.className = "inline-block mt-1 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-emerald-700 text-white";
                 document.getElementById('admin-only-menu').classList.remove('hidden');
                 document.getElementById('upload-box-admin').classList.remove('hidden');
             } else {
+                roleBadge.innerText = "Modo Leitura (Visualizador)";
+                roleBadge.className = "inline-block mt-1 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-slate-700 text-slate-300";
                 document.getElementById('admin-only-menu').classList.add('hidden');
                 document.getElementById('upload-box-admin').classList.add('hidden');
             }
@@ -818,7 +828,6 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -913,6 +922,11 @@
 
         async function handleCreateFarm(e) {
             e.preventDefault();
+            if (currentUserRole !== 'admin') {
+                alert("Apenas administradores master podem cadastrar fazendas!");
+                return;
+            }
+
             const idInput = document.getElementById('farm-id');
             const producerInput = document.getElementById('farm-producer');
             const nameInput = document.getElementById('farm-name');
@@ -957,6 +971,11 @@
 
         async function handleCreateUser(e) {
             e.preventDefault();
+            if (currentUserRole !== 'admin') {
+                alert("Apenas administradores master podem gerenciar acessos!");
+                return;
+            }
+
             const nameInput = document.getElementById('new-name');
             const emailInput = document.getElementById('new-email');
             const chkAll = document.getElementById('chk-farm-all');
@@ -1037,6 +1056,7 @@
         }
 
         async function deleteFarm(key) {
+            if (currentUserRole !== 'admin') return;
             if(confirm("Deseja excluir esta fazenda do banco na nuvem?")) {
                 try {
                     await db.collection("farms").doc(key).delete();
@@ -1050,6 +1070,7 @@
         }
 
         async function deleteUser(email) {
+            if (currentUserRole !== 'admin') return;
             if(confirm("Deseja remover a permissão deste e-mail?")) {
                 try {
                     await db.collection("users").doc(email).delete();
@@ -1577,6 +1598,11 @@
 
         // PROCESSAMENTO DE UPLOAD COM PRESERVAÇÃO DE SAFRAS ANTERIORES NO FIRESTORE
         function processUploadedFiles() {
+            if (currentUserRole !== 'admin') {
+                alert("Apenas o Administrador Master pode realizar importações de projetos.");
+                return;
+            }
+
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const uploadSafraYear = document.getElementById('upload-safra-year').value;
             const shpInput = document.getElementById('file-shp');
@@ -1675,7 +1701,6 @@
                     shp(e.target.result).then(function (newGeojson) {
                         let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
 
-                        // Se já existir um GeoJSON gravado anteriormente, transfere o histórico de safras já salvas!
                         if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
                             const oldFeatureMap = {};
                             currentFarm.geojson.features.forEach(oldF => {
@@ -1698,7 +1723,6 @@
                 };
                 reader.readAsArrayBuffer(shpInput.files[0]);
             } else {
-                // Usa a geometria que já existe no banco sem resetar
                 if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
                     runProcessGeoJSON(currentFarm.geojson);
                 } else {
