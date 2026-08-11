@@ -139,13 +139,23 @@
                             </div>
 
                             <!-- IMAGENS DE SATÉLITE (RGB / NDVI / ESRI) -->
-                            <div class="bg-slate-900 text-white p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 space-y-3">
                                 <span class="text-[11px] font-extrabold uppercase text-emerald-400 block"><i class="fa-solid fa-satellite text-xs mr-1"></i>Imagem de Fundo (Satélite)</span>
-                                <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
-                                    <option value="esri" selected>Satélite HD Padrão (Esri World Imagery)</option>
-                                    <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
-                                    <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
-                                </select>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Camada de Fundo</label>
+                                    <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
+                                        <option value="esri" selected>Satélite HD Padrão (Esri World)</option>
+                                        <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
+                                        <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
+                                    </select>
+                                </div>
+
+                                <!-- SELETOR DE DATA PARA O SATÉLITE SENTINEL -->
+                                <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
+                                    <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
+                                    <span class="text-[9px] text-emerald-400 block mt-1 font-semibold">*Exibindo apenas contornos das subdivisões</span>
+                                </div>
                             </div>
 
                             <!-- FILTRO POR ANO SAFRA -->
@@ -1157,53 +1167,67 @@
             }
         }
 
-        // ALTERAÇÃO DINÂMICA DE IMAGENS DE SATÉLITE (ESRI / SENTINEL-2 RGB / SENTINEL-2 NDVI)
+        // ALTERAÇÃO DINÂMICA DE IMAGENS DE SATÉLITE COM SUPORTE A DATAS E WMS ESRI SENTINEL
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
             const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
+            const satDateInput = document.getElementById('sel-sat-date');
+            const satDateBox = document.getElementById('box-sat-date');
+
+            if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
+                if (satDateBox) satDateBox.classList.remove('hidden');
+            } else {
+                if (satDateBox) satDateBox.classList.add('hidden');
+            }
+
+            const dateVal = satDateInput ? satDateInput.value : '2026-02-01';
 
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
 
             if (selectedType === 'sentinel_rgb') {
-                // WMS Público Sentinel-2 RGB (Mundialis Services)
-                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'Sentinel2_10m_RGB',
-                    format: 'image/jpeg',
+                // WMS Oficial Esri Sentinel-2 (Natural Color RGB - Layer 0)
+                tileLayerLeft = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
+                    layers: '0',
+                    format: 'png',
                     transparent: true,
-                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis WMS',
+                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
+                    attribution: 'Sentinel-2 RGB &copy; Esri/Copernicus',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'Sentinel2_10m_RGB',
-                    format: 'image/jpeg',
+                tileLayerRight = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
+                    layers: '0',
+                    format: 'png',
                     transparent: true,
-                    attribution: 'Copernicus Sentinel-2 &copy; Mundialis WMS',
+                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
+                    attribution: 'Sentinel-2 RGB &copy; Esri/Copernicus',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // WMS Público Sentinel-2 NDVI (Mundialis Services)
-                tileLayerLeft = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'NDVI',
-                    format: 'image/png',
+                // WMS Oficial Esri Sentinel-2 (NDVI Vigor Vegetativo - Layer 2)
+                tileLayerLeft = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
+                    layers: '2',
+                    format: 'png',
                     transparent: true,
-                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis WMS',
+                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
+                    attribution: 'Sentinel-2 NDVI &copy; Esri/Copernicus',
                     maxZoom: 18
                 }).addTo(mapLeft);
 
-                tileLayerRight = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-                    layers: 'NDVI',
-                    format: 'image/png',
+                tileLayerRight = L.tileLayer.wms('https://sentinel.arcgis.com/arcgis/rest/services/Sentinel2/ImageServer/WMSServer', {
+                    layers: '2',
+                    format: 'png',
                     transparent: true,
-                    attribution: 'Copernicus Sentinel-2 NDVI &copy; Mundialis WMS',
+                    time: dateVal ? `${dateVal}/${dateVal}` : undefined,
+                    attribution: 'Sentinel-2 NDVI &copy; Esri/Copernicus',
                     maxZoom: 18
                 }).addTo(mapRight);
 
             } else {
-                // Satélite ESRI World Imagery HD
+                // Satélite HD Padrão (Esri World Imagery)
                 tileLayerLeft = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                     attribution: 'Origens Parcerias Agrícolas &copy; Esri',
                     maxZoom: 18
@@ -1214,6 +1238,9 @@
                     maxZoom: 18
                 }).addTo(mapRight);
             }
+
+            // Atualizar o estilo dos polígonos para mostrar Apenas Contornos quando em modo RGB ou NDVI
+            updateGISMap();
         }
 
         function getQGISRules(param) {
@@ -1401,12 +1428,16 @@
             }
         }
 
+        // DESENHAR CAMADA GEOJSON (COM MODO APENAS CONTORNO EM RGB/NDVI)
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
             const showValues = document.getElementById('chk-values').checked;
             const selectedTalhao = document.getElementById('sel-talhao').value;
             const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
+            
+            const selectedBasemap = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
+            const isSatLayerActive = (selectedBasemap === 'sentinel_rgb' || selectedBasemap === 'sentinel_ndvi');
 
             return L.geoJSON(currentGeoJSON, {
                 filter: function(feature) {
@@ -1425,10 +1456,10 @@
                     }
 
                     return {
-                        fillColor: color,
-                        fillOpacity: 0.85,
-                        color: showBoundary ? '#1d4ed8' : 'transparent',
-                        weight: showBoundary ? 1.5 : 0
+                        fillColor: isSatLayerActive ? 'transparent' : color,
+                        fillOpacity: isSatLayerActive ? 0 : 0.85,
+                        color: showBoundary || isSatLayerActive ? '#1d4ed8' : 'transparent',
+                        weight: showBoundary || isSatLayerActive ? 2 : 0
                     };
                 },
                 onEachFeature: function(feature, layer) {
