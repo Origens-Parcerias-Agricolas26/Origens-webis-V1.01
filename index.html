@@ -454,19 +454,21 @@
             return Math.round(num * 10) / 10;
         }
 
-        // EXTRAI ANO SAFRA LIMPO (EX: 2026 DE "2026.0" OU "SAFRA 2026")
-        function extractSafra(val) {
-            if (val === undefined || val === null || val === '') return null;
-            const str = String(val).trim();
-            const match = str.match(/\b(20\d{2})\b/);
-            if (match) return match[1];
-            return str;
-        }
-
-        // LIMPEZA FLEXÍVEL DE TEXTO (REMOVE ESPAÇOS E MAIÚSCULAS)
-        function cleanString(str) {
-            if (!str) return '';
-            return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
+        // EXTRATOR UNIVERSAL DE ANO SAFRA (VARREDURA POR QUALQUER NOME DE COLUNA)
+        function extractSafra(rowObj) {
+            if (!rowObj || typeof rowObj !== 'object') return null;
+            
+            // Procurar em todas as chaves possíveis da linha do Excel
+            for (const key of Object.keys(rowObj)) {
+                const kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (kLower.includes('safra') || kLower.includes('anosafra') || kLower === 'ano' || kLower === 'as') {
+                    const val = String(rowObj[key]).trim();
+                    const match = val.match(/\b(20\d{2})\b/);
+                    if (match) return match[1];
+                    if (val.length === 4 && !isNaN(val)) return val;
+                }
+            }
+            return null;
         }
 
         function sanitizeAndCalculateSoilData(row) {
@@ -512,13 +514,13 @@
             return r;
         }
 
-        // BUSCA UNIVERSAL E TOLERANTE DE DADOS POR SAFRA
+        // BUSCA MULTI-SAFRA ROBUSTA
         function getFeatureDepthData(feature, depthKey, selectedSafra) {
             if (!feature || !feature.properties) return {};
 
             const props = feature.properties;
 
-            // 1. Dicionário de safras_historico
+            // 1. Dicionário safras_historico
             if (props.safras_historico && typeof props.safras_historico === 'object') {
                 if (selectedSafra && selectedSafra !== 'all') {
                     if (props.safras_historico[selectedSafra] && props.safras_historico[selectedSafra][depthKey]) {
@@ -534,30 +536,14 @@
                 }
             }
 
-            // 2. Dicionário de safras tradicional
-            if (props.safras && typeof props.safras === 'object') {
-                if (selectedSafra && selectedSafra !== 'all') {
-                    if (props.safras[selectedSafra] && props.safras[selectedSafra][depthKey]) {
-                        return props.safras[selectedSafra][depthKey];
-                    }
-                } else {
-                    const availableSafras = Object.keys(props.safras).sort().reverse();
-                    for (const s of availableSafras) {
-                        if (props.safras[s] && props.safras[s][depthKey]) {
-                            return props.safras[s][depthKey];
-                        }
-                    }
-                }
-            }
-
-            // 3. Chave combinada direta (ex: d0_10_2026)
+            // 2. Chave combinada direta (ex: d0_10_2026)
             if (selectedSafra && selectedSafra !== 'all') {
                 const safraKey = depthKey + '_' + selectedSafra;
                 if (props[safraKey]) return props[safraKey];
 
                 const defaultData = props[depthKey];
                 if (defaultData) {
-                    const rowSafra = extractSafra(defaultData['Ano Safra'] || defaultData['AnoSafra'] || defaultData['Safra'] || defaultData['ANO_SAFRA'] || props['Ano Safra'] || props['AnoSafra'] || props['Safra'] || props['ANO_SAFRA']);
+                    const rowSafra = extractSafra(defaultData);
                     if (!rowSafra || rowSafra === selectedSafra) {
                         return defaultData;
                     }
@@ -687,7 +673,7 @@
         async function logout() {
             await auth.signOut();
             document.getElementById('saas-section').classList.add('hidden');
-            document.getElementById('landing-section').classList.remove('hidden');
+            document.getElementById('landing-section').classList.add('hidden');
         }
 
         function switchTab(tab) {
@@ -809,7 +795,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR DE ANO SAFRA (VARREDURA COMPLETA)
+        // POPULAR SELETOR DE ANO SAFRA (VARREDURA PROFUNDA)
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -829,17 +815,16 @@
                         if (f.properties.safras_historico && typeof f.properties.safras_historico === 'object') {
                             Object.keys(f.properties.safras_historico).forEach(s => safrasSet.add(s));
                         }
-                        if (f.properties.safras && typeof f.properties.safras === 'object') {
-                            Object.keys(f.properties.safras).forEach(s => safrasSet.add(s));
-                        }
 
-                        const directSafra = extractSafra(f.properties['Ano Safra'] || f.properties['AnoSafra'] || f.properties['Safra'] || f.properties['ANO_SAFRA']);
-                        if (directSafra) safrasSet.add(directSafra);
-
+                        // Varrer todas as chaves de profundidade e sub-objetos em busca de safras
                         Object.keys(f.properties).forEach(pKey => {
-                            if (typeof f.properties[pKey] === 'object' && f.properties[pKey] !== null) {
-                                const val = extractSafra(f.properties[pKey]['Ano Safra'] || f.properties[pKey]['AnoSafra'] || f.properties[pKey]['Safra'] || f.properties[pKey]['ANO_SAFRA']);
-                                if (val) safrasSet.add(val);
+                            const valObj = f.properties[pKey];
+                            const detectedSafra = extractSafra(valObj);
+                            if (detectedSafra) safrasSet.add(detectedSafra);
+
+                            if (typeof valObj === 'object' && valObj !== null) {
+                                const nestedSafra = extractSafra(valObj);
+                                if (nestedSafra) safrasSet.add(nestedSafra);
                             }
                         });
                     }
@@ -1212,7 +1197,7 @@
             }
         }
 
-        // DESENHAR CAMADA GEOJSON COM SUPORTE COMPLETO A MÚLTIPLAS SAFRAS
+        // DESENHAR CAMADA GEOJSON COM COMPATIBILIDADE MULTI-SAFRA
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
@@ -1570,7 +1555,7 @@
             batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
         }
 
-        // LEITURA E VÍNCULO MULTI-SAFRA DE PLANILHAS (CRUZAMENTO FLEXÍVEL DE ATRIBUTOS)
+        // LEITURA MULTI-SAFRA DE ALTA PRECISÃO PARA PLANILHAS EXCEL
         function processUploadedFiles() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const shpInput = document.getElementById('file-shp');
@@ -1599,44 +1584,36 @@
                                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                                     const data = XLSX.utils.sheet_to_json(sheet);
                                     
-                                    const dataMap = {};
-                                    data.forEach(r => { 
-                                        let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba;
+                                    data.forEach(r => {
+                                        // Tenta identificar o identificador da gleba/subdivisão em qualquer coluna possível
+                                        let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba || r.GLEBA || r.Original || r.ORIGINAL;
                                         if (rawSub) {
-                                            const keyClean = cleanString(rawSub);
+                                            const subClean = String(rawSub).trim().toLowerCase();
                                             const cleanRow = sanitizeAndCalculateSoilData(r);
-                                            dataMap[keyClean] = dataMap[keyClean] || [];
-                                            dataMap[keyClean].push(cleanRow);
-                                        } 
-                                    });
+                                            const safraVal = extractSafra(r);
 
-                                    finalGeoJSON.features.forEach(f => {
-                                        if (f.properties) {
-                                            let featureSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba;
-                                            const keyClean = cleanString(featureSub);
+                                            let targetDepthKey = fallbackDepthKey;
+                                            const profVal = String(r.Prof || r.Profundidade || r.PROF || '').trim();
+                                            if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
+                                            else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
+                                            else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
 
-                                            if (keyClean && dataMap[keyClean]) {
-                                                const rows = dataMap[keyClean];
-                                                f.properties.safras_historico = f.properties.safras_historico || {};
+                                            finalGeoJSON.features.forEach(f => {
+                                                if (f.properties) {
+                                                    let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba || f.properties.Original;
+                                                    if (fSub && String(fSub).trim().toLowerCase() === subClean) {
+                                                        f.properties.safras_historico = f.properties.safras_historico || {};
 
-                                                rows.forEach(r => {
-                                                    const safraVal = extractSafra(r['Ano Safra'] || r['AnoSafra'] || r['Safra'] || r['ANO_SAFRA'] || r['Ano'] || r['AS']);
-                                                    
-                                                    let targetDepthKey = fallbackDepthKey;
-                                                    const profVal = String(r.Prof || r.Profundidade || '').trim();
-                                                    if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
-                                                    else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
-                                                    else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
-
-                                                    if (safraVal) {
-                                                        f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
-                                                        f.properties.safras_historico[safraVal][targetDepthKey] = r;
-                                                        f.properties[targetDepthKey + '_' + safraVal] = r;
+                                                        if (safraVal) {
+                                                            f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
+                                                            f.properties.safras_historico[safraVal][targetDepthKey] = cleanRow;
+                                                        }
+                                                        
+                                                        // Salva também no padrão para fallback
+                                                        f.properties[targetDepthKey] = cleanRow;
                                                     }
-                                                    
-                                                    f.properties[targetDepthKey] = r;
-                                                });
-                                            }
+                                                }
+                                            });
                                         }
                                     });
                                     resolve();
