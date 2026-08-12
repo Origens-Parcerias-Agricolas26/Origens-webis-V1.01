@@ -563,6 +563,45 @@
         let vrateDoseMap = {};
         let vrateUniqueDoses = [];
 
+        // GERADOR DA PALETA COMPLETA RdYlGn (RED-YELLOW-GREEN)
+        function getRdYlGnPalette(n) {
+            const colors = ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'];
+            if (n <= 1) return ['#1a9850'];
+            if (n <= colors.length) {
+                let res = [];
+                for (let i = 0; i < n; i++) {
+                    let idx = Math.round(i * (colors.length - 1) / (n - 1));
+                    res.push(colors[idx]);
+                }
+                return res;
+            }
+            function hexToRgb(h) {
+                h = h.replace('#', '');
+                return [parseInt(h.substring(0,2), 16), parseInt(h.substring(2,4), 16), parseInt(h.substring(4,6), 16)];
+            }
+            function rgbToHex(r, g, b) {
+                return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+            }
+            const stops = colors.map(hexToRgb);
+            let res = [];
+            for (let i = 0; i < n; i++) {
+                let t = i / (n - 1);
+                let scaledT = t * (stops.length - 1);
+                let idx = Math.floor(scaledT);
+                if (idx >= stops.length - 1) {
+                    res.push(rgbToHex(...stops[stops.length - 1]));
+                } else {
+                    let localT = scaledT - idx;
+                    let c1 = stops[idx], c2 = stops[idx + 1];
+                    let r = Math.round(c1[0] + (c2[0] - c1[0]) * localT);
+                    let g = Math.round(c1[1] + (c2[1] - c1[1]) * localT);
+                    let b = Math.round(c1[2] + (c2[2] - c1[2]) * localT);
+                    res.push(rgbToHex(r, g, b));
+                }
+            }
+            return res;
+        }
+
         function format1Decimal(val) {
             if (val === null || val === undefined || val === '') return null;
             const str = String(val).replace(',', '.').trim();
@@ -1524,7 +1563,7 @@
         }
 
         // =========================================================================
-        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL (EXIBIÇÃO COM DOSES EXATAS)
+        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL (EXIBIÇÃO COM COMPOSIÇÃO RdYlGn)
         // =========================================================================
         function initVRateMap() {
             if (!vrateMap) {
@@ -1565,10 +1604,13 @@
             const showLabels = document.getElementById('vrate-chk-labels') ? document.getElementById('vrate-chk-labels').checked : false;
             const showValues = document.getElementById('vrate-chk-values') ? document.getElementById('vrate-chk-values').checked : true;
 
-            const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+            // Ordena as doses de forma crescente para aplicar a escala RdYlGn (Mapeia do Menor = Vermelho ao Maior = Verde)
+            const vrateAscDoses = Array.from(new Set(vrateUniqueDoses)).sort((a, b) => a - b);
+            const rdYlGnPalette = getRdYlGnPalette(vrateAscDoses.length);
+
             let doseColorMap = {};
-            vrateUniqueDoses.forEach((d, i) => {
-                doseColorMap[d] = palette[i % palette.length];
+            vrateAscDoses.forEach((d, i) => {
+                doseColorMap[d] = rdYlGnPalette[i];
             });
 
             if (vrateGeojsonLayer) vrateMap.removeLayer(vrateGeojsonLayer);
@@ -1582,10 +1624,7 @@
                     let color = '#f1f5f9';
                     if (dose > 0 && doseColorMap[dose]) {
                         color = doseColorMap[dose];
-                    } else if (dose >= 200) color = '#15803d';
-                    else if (dose >= 150) color = '#22c55e';
-                    else if (dose >= 100) color = '#facc15';
-                    else if (dose > 0) color = '#f97316';
+                    }
 
                     return { 
                         fillColor: color, 
@@ -1701,13 +1740,20 @@
                 let finalTotalStr = unit === 'kg_ha' ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` : `${format1Decimal(totalProduct)} Toneladas`;
                 document.getElementById('vrate-sum-total').innerText = finalTotalStr;
 
-                const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
-                let legendHTML = vrateUniqueDoses.map((d, i) => `
-                    <div class="flex items-center gap-2">
-                        <div class="w-3.5 h-3.5 rounded shadow-sm border border-slate-300" style="background:${palette[i % palette.length]}"></div>
-                        <span><b>${d}</b> ${unitStr}</span>
-                    </div>
-                `).join('');
+                // Montar Legenda de Doses Exatas com Gradiente RdYlGn
+                const vrateAscDoses = Array.from(new Set(vrateUniqueDoses)).sort((a, b) => a - b);
+                const rdYlGnPalette = getRdYlGnPalette(vrateAscDoses.length);
+
+                let legendHTML = vrateUniqueDoses.map((d) => {
+                    let colorIdx = vrateAscDoses.indexOf(d);
+                    let hexColor = rdYlGnPalette[colorIdx];
+                    return `
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 rounded shadow-sm border border-slate-300" style="background:${hexColor}"></div>
+                            <span><b>${d}</b> ${unitStr}</span>
+                        </div>
+                    `;
+                }).join('');
 
                 legendHTML += `
                     <div class="flex items-center gap-2 border-t pt-1 mt-1">
@@ -1723,7 +1769,7 @@
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
-        // DESENHAR CANVAS DO LAUDO DA TAXA VARIÁVEL (PDF SEM POLUIÇÃO VISUAL E LEGENDA DE DOSES EXATAS)
+        // DESENHAR CANVAS DO LAUDO DA TAXA VARIÁVEL (COM PADRÃO DE CORES RdYlGn E LEGENDA EXATA)
         function drawVRateCanvas(farmInfo, product, unit) {
             const canvas = document.getElementById('pdf-render-canvas');
             const ctx = canvas.getContext('2d');
@@ -1761,10 +1807,12 @@
                 if (item.subs) doseMap[cleanString(item.subs)] = item.dose;
             });
 
-            const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+            const vrateAscDoses = Array.from(new Set(vrateUniqueDoses)).sort((a, b) => a - b);
+            const rdYlGnPalette = getRdYlGnPalette(vrateAscDoses.length);
+
             let doseColorMap = {};
-            vrateUniqueDoses.forEach((d, i) => {
-                doseColorMap[d] = palette[i % palette.length];
+            vrateAscDoses.forEach((d, i) => {
+                doseColorMap[d] = rdYlGnPalette[i];
             });
 
             let totalArea = 0, totalProduct = 0;
@@ -1815,10 +1863,7 @@
                         let fillColor = '#f1f5f9';
                         if (dose > 0 && doseColorMap[dose]) {
                             fillColor = doseColorMap[dose];
-                        } else if (dose >= 200) fillColor = '#15803d';
-                        else if (dose >= 150) fillColor = '#22c55e';
-                        else if (dose >= 100) fillColor = '#facc15';
-                        else if (dose > 0) fillColor = '#f97316';
+                        }
 
                         const rings = f.geometry.type === 'MultiPolygon' 
                             ? f.geometry.coordinates.flat(1) 
@@ -1883,8 +1928,11 @@
             ctx.fillText("LEGENDA DE APLICAÇÃO", legX + 15, legY + 35);
 
             let currY = legY + 70;
-            vrateUniqueDoses.forEach((d, i) => {
-                ctx.fillStyle = palette[i % palette.length];
+            vrateUniqueDoses.forEach((d) => {
+                let colorIdx = vrateAscDoses.indexOf(d);
+                let hexColor = rdYlGnPalette[colorIdx];
+
+                ctx.fillStyle = hexColor;
                 ctx.fillRect(legX + 15, currY - 16, 22, 22);
                 ctx.strokeStyle = "#64748B";
                 ctx.lineWidth = 1;
