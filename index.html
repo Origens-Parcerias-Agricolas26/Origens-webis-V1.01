@@ -514,7 +514,6 @@
         </div>
     </div>
 
-    <!-- CANVAS OCULTO PARA EXPORTAÇÃO DO PDF -->
     <canvas id="pdf-render-canvas" width="1600" height="1200" style="display:none;"></canvas>
 
     <script>
@@ -635,6 +634,7 @@
             return r;
         }
 
+        // BUSCA ROBUSTA DE DADOS NA SAFRA SELECIONADA
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1447,7 +1447,7 @@
 
                     layer.bindPopup(`<b>${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b><br>${param}: <b>${displayVal}</b>`);
 
-                    // Montagem e fixação dos rótulos permanentes sobre os polígonos
+                    // Montagem dos rótulos permanentes sobre os polígonos
                     let labelText = "";
                     if (showLabels && showValues) {
                         labelText = `${subName}: ${displayVal}`;
