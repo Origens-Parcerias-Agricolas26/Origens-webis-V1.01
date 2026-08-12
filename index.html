@@ -363,7 +363,7 @@
                                 <div class="flex justify-between text-xs text-sm border-t border-slate-800 pt-1 mt-1"><span>Total Produto:</span><b id="vrate-sum-total" class="text-emerald-400 font-extrabold text-sm">---</b></div>
                             </div>
 
-                            <!-- EXPORTAR PARA MONITORES (SHAPEFILE COMPLETO MULTI-ARQUIVOS) -->
+                            <!-- EXPORTAR PARA MONITORES -->
                             <div class="space-y-2 border-t pt-3">
                                 <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar para Monitores</span>
                                 <div>
@@ -412,7 +412,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h3 class="text-lg font-bold text-slate-900 mb-4 border-b pb-2"><i class="fa-solid fa-tractor text-origens-green mr-2"></i>Cadastrar Nova Fazenda</h3>
-                            <form onsubmit="handleCreateFarm(event)" class="space-y-4">
+                            <form onsubmit="handleCreateFarmDirect(event)" class="space-y-4">
                                 <div>
                                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">ID da Fazenda (sem espaços)</label>
                                     <input type="text" id="farm-id" required placeholder="Ex: fazenda_boa_vista" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold">
@@ -560,9 +560,11 @@
             return null;
         }
 
+        // LIMPEZA DE TEXTO FLEXÍVEL PARA BATER SUCUPIRA-A COM SUCUPIRA-A (Talhão SUCUPIRA)
         function cleanString(str) {
             if (!str) return '';
-            return String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
+            let base = String(str).toLowerCase().split('(')[0];
+            return base.replace(/[^a-z0-9]/g, '');
         }
 
         function sanitizeAndCalculateSoilData(row) {
@@ -750,8 +752,12 @@
             }).join('');
         }
 
-        async function handleCreateFarm(e) {
-            e.preventDefault();
+        async function handleCreateFarmDirect(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
             if (currentUserRole !== 'admin') {
                 alert("Apenas administradores master podem cadastrar fazendas!");
                 return false;
@@ -793,7 +799,12 @@
                 populateFarmSelector();
                 renderAdminTables();
                 alert(`Fazenda ${name} (${producer}) cadastrada com sucesso na nuvem!`);
-                e.target.reset();
+                
+                idInput.value = '';
+                producerInput.value = '';
+                nameInput.value = '';
+                locationInput.value = '';
+                areaInput.value = '';
             } catch (err) {
                 console.error("Erro ao salvar fazenda:", err);
                 alert("Falha ao salvar fazenda na nuvem: " + err.message);
@@ -802,7 +813,11 @@
         }
 
         async function handleCreateUser(e) {
-            e.preventDefault();
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
             if (currentUserRole !== 'admin') {
                 alert("Apenas administradores master podem gerenciar acessos!");
                 return false;
@@ -839,7 +854,9 @@
                 await db.collection("users").doc(email).set(userObj);
                 await loadCloudData();
                 alert(`E-mail ${email} autorizado com sucesso para as fazendas selecionadas!`);
-                e.target.reset();
+                
+                nameInput.value = '';
+                emailInput.value = '';
                 if(chkAll) chkAll.checked = false;
                 toggleAllFarmsCheckboxes(chkAll);
             } catch (err) {
@@ -1386,7 +1403,7 @@
         }
 
         // =========================================================================
-        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL (LEITURA ROBUSTA DO EXCEL KCl.xlsx)
+        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL
         // =========================================================================
         function initVRateMap() {
             if (!vrateMap) {
