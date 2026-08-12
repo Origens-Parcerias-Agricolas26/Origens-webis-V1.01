@@ -364,9 +364,9 @@
                                 <div class="flex justify-between text-xs text-sm border-t border-slate-800 pt-1 mt-1"><span>Total Produto:</span><b id="vrate-sum-total" class="text-emerald-400 font-extrabold text-sm">---</b></div>
                             </div>
 
-                            <!-- EXPORTAR PARA MONITORES -->
+                            <!-- EXPORTAR PARA MONITORES & PDF PRESCRIÇÃO -->
                             <div class="space-y-2 border-t pt-3">
-                                <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar para Monitores</span>
+                                <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar Prescrição</span>
                                 <div>
                                     <label class="block text-[11px] font-bold text-slate-600 mb-1">Selecione a Marca / Sistema do Trator</label>
                                     <select id="vrate-monitor-brand" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-800">
@@ -381,6 +381,9 @@
                                         <option value="isobus">ISO-XML Genérico (ISOBUS / TaskData) - [TASKDATA\]</option>
                                     </select>
                                 </div>
+                                <button onclick="generateVRatePDF()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold p-3 rounded-xl shadow text-xs flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-file-pdf"></i><span>Exportar Laudo PDF de Prescrição</span>
+                                </button>
                                 <button onclick="exportForMonitor()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold p-3 rounded-xl shadow text-xs flex items-center justify-center gap-2">
                                     <i class="fa-solid fa-download text-amber-400"></i><span>Baixar Arquivo do Monitor (.ZIP)</span>
                                 </button>
@@ -511,6 +514,7 @@
         </div>
     </div>
 
+    <!-- CANVAS OCULTO PARA EXPORTAÇÃO DO PDF -->
     <canvas id="pdf-render-canvas" width="1600" height="1200" style="display:none;"></canvas>
 
     <script>
@@ -631,7 +635,6 @@
             return r;
         }
 
-        // BUSCA DA SAFRA SELECIONADA
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1416,7 +1419,6 @@
             const depth = document.getElementById('sel-depth').value;
             const rules = getQGISRules(param);
 
-            // Ler estados das caixas de exibição
             const showBoundary = document.getElementById('chk-boundary') ? document.getElementById('chk-boundary').checked : true;
             const showLabels = document.getElementById('chk-labels') ? document.getElementById('chk-labels').checked : true;
             const showValues = document.getElementById('chk-values') ? document.getElementById('chk-values').checked : true;
@@ -1637,6 +1639,467 @@
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
+        // DESENHAR CANVAS DO LAUDO DA TAXA VARIÁVEL (PDF)
+        function drawVRateCanvas(farmInfo, product, unit) {
+            const canvas = document.getElementById('pdf-render-canvas');
+            const ctx = canvas.getContext('2d');
+            const currentGeoJSON = farmInfo.geojson;
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "#D97706";
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.textAlign = "left";
+            ctx.fillText("ORIGENS Parcerias Agrícolas | Brasnorte - MT", 50, 60);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 26px Helvetica, Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(`LAUDO DE APLICAÇÃO - TAXA VARIÁVEL (${product.toUpperCase()})`, 800, 60);
+
+            ctx.fillStyle = "#D97706";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.fillText(`PROPRIEDADE: ${farmInfo.name.toUpperCase()} | INSUMO: ${product.toUpperCase()} (${unit === 'kg_ha' ? 'kg/ha' : 't/ha'})`, 800, 95);
+
+            ctx.textAlign = "left";
+
+            let doseMap = {};
+            vrateProcessedData.forEach(item => {
+                if (item.subs) doseMap[cleanString(item.subs)] = item.dose;
+            });
+
+            let totalArea = 0, totalProduct = 0;
+
+            if (currentGeoJSON && currentGeoJSON.features && currentGeoJSON.features.length) {
+                let allPts = [];
+                currentGeoJSON.features.forEach(f => {
+                    if (f.geometry && f.geometry.coordinates) {
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : f.geometry.coordinates;
+                        rings.forEach(ring => {
+                            if (Array.isArray(ring)) ring.forEach(pt => {
+                                if (Array.isArray(pt) && pt.length >= 2) allPts.push(pt);
+                            });
+                        });
+                    }
+                });
+
+                if (allPts.length) {
+                    const minX = Math.min(...allPts.map(p => p[0]));
+                    const maxX = Math.max(...allPts.map(p => p[0]));
+                    const minY = Math.min(...allPts.map(p => p[1]));
+                    const maxY = Math.max(...allPts.map(p => p[1]));
+
+                    const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
+
+                    const centerLat = (minY + maxY) / 2;
+                    const cosScale = Math.cos(centerLat * Math.PI / 180);
+                    const spanX = (maxX - minX) * cosScale || 0.0001;
+                    const spanY = (maxY - minY) || 0.0001;
+
+                    const scale = Math.min(mapW / spanX, mapH / spanY);
+                    const offsetX = mapX + (mapW - spanX * scale) / 2;
+                    const offsetY = mapY + (mapH - spanY * scale) / 2;
+
+                    currentGeoJSON.features.forEach(f => {
+                        let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
+                        let subClean = cleanString(rawSub);
+                        let dose = doseMap[subClean] !== undefined ? doseMap[subClean] : 0;
+                        let area = parseFloat(f.properties.Area || f.properties.AREA || 0);
+
+                        if (dose > 0) {
+                            totalArea += area;
+                            totalProduct += (dose * area);
+                        }
+
+                        let fillColor = '#f1f5f9';
+                        if (dose >= 200) fillColor = '#15803d';
+                        else if (dose >= 150) fillColor = '#22c55e';
+                        else if (dose >= 100) fillColor = '#facc15';
+                        else if (dose > 0) fillColor = '#f97316';
+
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : (f.geometry.coordinates || []);
+
+                        let totalPx = 0, totalPy = 0, ptCount = 0;
+
+                        rings.forEach(ring => {
+                            if (!Array.isArray(ring) || !ring.length) return;
+
+                            ctx.beginPath();
+                            ring.forEach((pt, index) => {
+                                const px = offsetX + (pt[0] - minX) * cosScale * scale;
+                                const py = offsetY + (maxY - pt[1]) * scale;
+                                totalPx += px;
+                                totalPy += py;
+                                ptCount++;
+
+                                if (index === 0) ctx.moveTo(px, py);
+                                else ctx.lineTo(px, py);
+                            });
+                            ctx.closePath();
+
+                            ctx.fillStyle = fillColor;
+                            ctx.fill();
+                            ctx.strokeStyle = "#1e3a8a";
+                            ctx.lineWidth = 1.2;
+                            ctx.stroke();
+                        });
+
+                        if (ptCount > 0 && dose > 0) {
+                            const cx = totalPx / ptCount;
+                            const cy = totalPy / ptCount;
+                            const subName = f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao || 'Gleba';
+
+                            ctx.fillStyle = "#000000";
+                            ctx.font = "bold 9px Helvetica, Arial";
+                            ctx.textAlign = "center";
+                            ctx.fillText(`${subName}: ${dose} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, cx, cy);
+                            ctx.textAlign = "left";
+                        }
+                    });
+                }
+            }
+
+            const legX = 1180, legY = 130;
+            ctx.fillStyle = "#F8FAFC";
+            ctx.fillRect(legX, legY, 370, 900);
+            ctx.strokeStyle = "#CBD5E1";
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(legX, legY, 370, 900);
+
+            ctx.fillStyle = "#0F172A";
+            ctx.font = "bold 20px Helvetica, Arial";
+            ctx.fillText("LEGENDA DE APLICAÇÃO", legX + 15, legY + 35);
+
+            const vrateRules = [
+                { color: '#15803d', label: 'Dose Alta (>= 200)' },
+                { color: '#22c55e', label: 'Dose Média-Alta (150 - 200)' },
+                { color: '#facc15', label: 'Dose Média (100 - 150)' },
+                { color: '#f97316', label: 'Dose Baixa (1 - 100)' },
+                { color: '#f1f5f9', label: 'Sem Aplicação (0)' }
+            ];
+
+            let currY = legY + 70;
+            vrateRules.forEach(r => {
+                ctx.fillStyle = r.color;
+                ctx.fillRect(legX + 15, currY - 16, 22, 22);
+                ctx.strokeStyle = "#64748B";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(legX + 15, currY - 16, 22, 22);
+
+                ctx.fillStyle = "#334155";
+                ctx.font = "bold 14px Helvetica, Arial";
+                ctx.fillText(`${r.label} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, legX + 48, currY);
+                currY += 38;
+            });
+
+            currY += 20;
+            ctx.fillStyle = "#0F172A";
+            ctx.fillRect(legX + 15, currY, 340, 220);
+            
+            ctx.fillStyle = "#F59E0B";
+            ctx.font = "bold 16px Helvetica, Arial";
+            ctx.fillText("RESUMO DO INSUMO", legX + 30, currY + 30);
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "14px Helvetica, Arial";
+            ctx.fillText(`Produto: ${product}`, legX + 30, currY + 65);
+            ctx.fillText(`Área Total: ${format1Decimal(totalArea)} ha`, legX + 30, currY + 100);
+
+            let avgDose = totalArea > 0 ? (totalProduct / totalArea) : 0;
+            ctx.fillText(`Dose Média: ${format1Decimal(avgDose)} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, legX + 30, currY + 135);
+
+            let finalTotalStr = unit === 'kg_ha' 
+                ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` 
+                : `${format1Decimal(totalProduct)} Toneladas`;
+
+            ctx.fillStyle = "#34D399";
+            ctx.font = "bold 15px Helvetica, Arial";
+            ctx.fillText(`Total Insumo: ${finalTotalStr}`, legX + 30, currY + 180);
+
+            ctx.fillStyle = "#64748B";
+            ctx.font = "14px Helvetica, Arial";
+            ctx.fillText("www.origens.agr.br", 50, canvas.height - 35);
+            ctx.textAlign = "right";
+            ctx.fillText("Escala Automática | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
+
+            return canvas.toDataURL('image/jpeg', 0.98);
+        }
+
+        function generateVRatePDF() {
+            if (!vrateProcessedData.length) { 
+                alert('Processe primeiro a planilha de prescrição para gerar o laudo PDF!'); 
+                return; 
+            }
+            const farmKey = document.getElementById('vrate-sel-farm').value;
+            const farmInfo = farmsDatabase[farmKey] || { name: 'Fazenda' };
+            const product = document.getElementById('vrate-product').value;
+            const unit = document.getElementById('vrate-unit').value;
+
+            const imgData = drawVRateCanvas(farmInfo, product, unit);
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+            pdf.save(`Laudo_Prescricao_${product}_${farmInfo.name.replace(/\s+/g, '_')}.pdf`);
+        }
+
+        // DESENHAR CANVAS DO LAUDO DA FERTILIDADE DO SOLO (PDF)
+        function drawCanvasForParam(param, depthConfig, farmInfo, rules) {
+            const canvas = document.getElementById('pdf-render-canvas');
+            const ctx = canvas.getContext('2d');
+            const currentGeoJSON = farmInfo.geojson;
+            const showLabels = document.getElementById('chk-labels') ? document.getElementById('chk-labels').checked : true;
+            const showValues = document.getElementById('chk-values') ? document.getElementById('chk-values').checked : true;
+            
+            const selectedTalhoes = getSelectedTalhoes();
+            const selectedSafras = getSelectedSafras();
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "#2E7D32";
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.textAlign = "left";
+            ctx.fillText("ORIGENS Parcerias Agrícolas | Brasnorte - MT", 50, 60);
+
+            ctx.fillStyle = "#1E293B";
+            ctx.font = "bold 26px Helvetica, Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(`${param.toUpperCase()} - CARACTERIZAÇÃO DE SOLO`, 800, 60);
+
+            ctx.fillStyle = "#2E7D32";
+            ctx.font = "bold 18px Helvetica, Arial";
+            ctx.fillText(`CAMADA: ${depthConfig.titleText} | ${farmInfo.name.toUpperCase()}`, 800, 95);
+
+            ctx.textAlign = "left";
+
+            if (currentGeoJSON && currentGeoJSON.features && currentGeoJSON.features.length) {
+                let filteredFeatures = currentGeoJSON.features.filter(f => !selectedTalhoes.length || (f.properties && selectedTalhoes.includes(String(f.properties.Talhao))));
+
+                let allPts = [];
+                filteredFeatures.forEach(f => {
+                    if (f.geometry && f.geometry.coordinates) {
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : f.geometry.coordinates;
+                        rings.forEach(ring => {
+                            if (Array.isArray(ring)) ring.forEach(pt => {
+                                if (Array.isArray(pt) && pt.length >= 2) allPts.push(pt);
+                            });
+                        });
+                    }
+                });
+
+                if (allPts.length) {
+                    const minX = Math.min(...allPts.map(p => p[0]));
+                    const maxX = Math.max(...allPts.map(p => p[0]));
+                    const minY = Math.min(...allPts.map(p => p[1]));
+                    const maxY = Math.max(...allPts.map(p => p[1]));
+
+                    const mapX = 50, mapY = 120, mapW = 1050, mapH = 980;
+
+                    const centerLat = (minY + maxY) / 2;
+                    const cosScale = Math.cos(centerLat * Math.PI / 180);
+                    const spanX = (maxX - minX) * cosScale || 0.0001;
+                    const spanY = (maxY - minY) || 0.0001;
+
+                    const scale = Math.min(mapW / spanX, mapH / spanY);
+                    const offsetX = mapX + (mapW - spanX * scale) / 2;
+                    const offsetY = mapY + (mapH - spanY * scale) / 2;
+
+                    filteredFeatures.forEach(f => {
+                        const depthData = getFeatureDepthData(f, depthConfig.key, selectedSafras);
+                        const rawVal = depthData[param];
+                        const val = format1Decimal(rawVal);
+
+                        let fillColor = "#94a3b8";
+                        if (val !== null && val !== undefined && !isNaN(val)) {
+                            const matchedRule = rules.find(r => val >= r.min && val <= r.max);
+                            if (matchedRule) fillColor = matchedRule.color;
+                        }
+
+                        const rings = f.geometry.type === 'MultiPolygon' 
+                            ? f.geometry.coordinates.flat(1) 
+                            : (f.geometry.coordinates || []);
+
+                        let totalPx = 0, totalPy = 0, ptCount = 0;
+
+                        rings.forEach(ring => {
+                            if (!Array.isArray(ring) || !ring.length) return;
+
+                            ctx.beginPath();
+                            ring.forEach((pt, index) => {
+                                const px = offsetX + (pt[0] - minX) * cosScale * scale;
+                                const py = offsetY + (maxY - pt[1]) * scale;
+                                totalPx += px;
+                                totalPy += py;
+                                ptCount++;
+
+                                if (index === 0) ctx.moveTo(px, py);
+                                else ctx.lineTo(px, py);
+                            });
+                            ctx.closePath();
+
+                            ctx.fillStyle = fillColor;
+                            ctx.fill();
+                            ctx.strokeStyle = "#1d4ed8";
+                            ctx.lineWidth = 1.2;
+                            ctx.stroke();
+                        });
+
+                        if (ptCount > 0) {
+                            const cx = totalPx / ptCount;
+                            const cy = totalPy / ptCount;
+
+                            let pdfLabel = "";
+                            const subName = f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao || '';
+                            if (showLabels && showValues) {
+                                pdfLabel = `${subName}: ${val !== null && val !== undefined ? val : 'N/A'}`;
+                            } else if (showLabels) {
+                                pdfLabel = subName;
+                            } else if (showValues) {
+                                pdfLabel = `${val !== null && val !== undefined ? val : 'N/A'}`;
+                            }
+
+                            if (pdfLabel !== "") {
+                                ctx.fillStyle = "#000000";
+                                ctx.font = "bold 9px Helvetica, Arial";
+                                ctx.textAlign = "center";
+                                ctx.fillText(pdfLabel, cx, cy);
+                                ctx.textAlign = "left";
+                            }
+                        }
+                    });
+                }
+            }
+
+            const legX = 1180, legY = 130;
+            ctx.fillStyle = "#F8FAFC";
+            ctx.fillRect(legX, legY, 370, 900);
+            ctx.strokeStyle = "#CBD5E1";
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(legX, legY, 370, 900);
+
+            ctx.fillStyle = "#0F172A";
+            ctx.font = "bold 20px Helvetica, Arial";
+            ctx.fillText("LEGENDA DE NÍVEIS", legX + 15, legY + 35);
+
+            let currY = legY + 70;
+            rules.forEach(r => {
+                ctx.fillStyle = r.color;
+                ctx.fillRect(legX + 15, currY - 16, 22, 22);
+                ctx.strokeStyle = "#64748B";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(legX + 15, currY - 16, 22, 22);
+
+                ctx.fillStyle = "#334155";
+                ctx.font = "bold 14px Helvetica, Arial";
+                ctx.fillText(r.label, legX + 48, currY);
+                currY += 38;
+            });
+
+            ctx.fillStyle = "#64748B";
+            ctx.font = "14px Helvetica, Arial";
+            ctx.fillText("www.origens.agr.br", 50, canvas.height - 35);
+            ctx.textAlign = "right";
+            ctx.fillText("Escala Automática | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
+
+            return canvas.toDataURL('image/jpeg', 0.98);
+        }
+
+        function generatePerfectPDF() {
+            const btnText = document.getElementById('pdf-btn-text');
+            if (btnText) btnText.innerText = "Gerando PDF...";
+
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
+            const depthKey = document.getElementById('sel-depth').value;
+            const param = document.getElementById('sel-param').value;
+            const depthText = depthKey.replace('d', '').replace('_', '-') + ' cm';
+            const rules = getQGISRules(param);
+
+            const depthConfig = { key: depthKey, titleText: `${depthText}` };
+            const imgData = drawCanvasForParam(param, depthConfig, farmInfo, rules);
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+            pdf.save(`Laudo_${param}_${depthText.replace(/\s+/g, '_')}_${farmInfo.name.replace(/\s+/g, '_')}.pdf`);
+
+            if (btnText) btnText.innerText = "Exportar Laudo PDF Atual";
+        }
+
+        async function generateBatchPDFs() {
+            const batchBtnText = document.getElementById('pdf-batch-btn-text');
+            if (batchBtnText) batchBtnText.innerText = "Processando Lote...";
+
+            const selectedFarmKey = document.getElementById('sel-farm').value;
+            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
+
+            const depthsList = [
+                { key: 'd0_10', titleText: '0-10 cm' },
+                { key: 'd10_20', titleText: '10-20 cm' },
+                { key: 'd20_40', titleText: '20-40 cm' }
+            ];
+
+            const paramsList = [
+                'Argila', 'MO', 'Classes de MO', 'pH_CaCl2', 'pH_água',
+                'P', 'Classes de P', 'K', 'Ca', 'Mg', 'S',
+                'Al', 'H', 'Sb', 'CTC', 'V%', 'Sat. Al',
+                'Ca%', 'Mg%', 'K%', 'Zn', 'Cu', 'Mn', 'B'
+            ];
+
+            const zip = new JSZip();
+            const { jsPDF } = window.jspdf;
+
+            let totalFiles = paramsList.length * depthsList.length;
+            let count = 0;
+
+            for (let d = 0; d < depthsList.length; d++) {
+                const depthObj = depthsList[d];
+                for (let i = 0; i < paramsList.length; i++) {
+                    const paramName = paramsList[i];
+                    count++;
+                    if (batchBtnText) batchBtnText.innerText = `Gerando (${count}/${totalFiles}) ${paramName} (${depthObj.titleText})...`;
+
+                    const rules = getQGISRules(paramName);
+                    const imgData = drawCanvasForParam(paramName, depthObj, farmInfo, rules);
+
+                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+
+                    const pdfBlob = pdf.output('blob');
+                    const fileName = `Laudo_${paramName}_${depthObj.titleText.replace(/\s+/g, '')}.pdf`;
+                    zip.file(fileName, pdfBlob);
+
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+
+            if (batchBtnText) batchBtnText.innerText = "Compactando ZIP...";
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = `Lote_Completo_Laudos_${farmInfo.name.replace(/\s+/g, '_')}.zip`;
+            link.click();
+
+            if (batchBtnText) batchBtnText.innerText = "Exportar Lote de PDFs (.ZIP)";
+        }
+
         // CONVERSOR GERADOR DA COLEÇÃO SHAPEFILE COMPLETA (.SHP, .SHX, .DBF, .PRJ, .CPG)
         function generateSHPFiles(geojson, baseName) {
             let prjContent = `GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]`;
@@ -1806,9 +2269,6 @@
                 alert("Envie pelo menos o arquivo Shapefile (.zip) da fazenda!");
             }
         }
-
-        function generatePerfectPDF() { alert('Exportação de PDF gerada com sucesso.'); }
-        function generateBatchPDFs() { alert('Exportação em Lote gerada com sucesso.'); }
     </script>
 </body>
 </html>
