@@ -155,7 +155,7 @@
                                 </div>
                             </div>
 
-                            <!-- FILTRO MULTI-SELEÇÃO DE ANO SAFRA -->
+                            <!-- FILTRO MULTI-SELEÇÃO DE ANO SAFRA (PRÉ-SELECIONADO ÚLTIMO ANO) -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
@@ -165,13 +165,13 @@
                                 </div>
                             </div>
 
-                            <!-- FILTRO MULTI-SELEÇÃO DE TALHÃO -->
+                            <!-- FILTRO MULTI-SELEÇÃO DE TALHÃO COM 'SELECIONAR TODOS' -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-filter text-origens-green mr-1"></i>Filtrar por Talhão (Múltiplo)</label>
-                                    <button onclick="toggleAllTalhoes()" class="text-[10px] font-bold text-origens-green hover:underline">Todos/Nenhum</button>
+                                    <button onclick="toggleAllTalhoesBtn()" class="text-[10px] font-bold text-origens-green hover:underline">Todos/Nenhum</button>
                                 </div>
-                                <div id="container-talhao-checkboxes" class="max-h-36 overflow-y-auto bg-slate-50 border border-slate-300 rounded-xl p-2 space-y-1 text-xs">
+                                <div id="container-talhao-checkboxes" class="max-h-40 overflow-y-auto bg-slate-50 border border-slate-300 rounded-xl p-2 space-y-1 text-xs">
                                 </div>
                             </div>
 
@@ -871,7 +871,7 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
-        // POPULAR SELETOR MULTI-CHECKBOX DE SAFRAS
+        // POPULAR SAFRAS: ÚLTIMO ANO PRÉ-SELECIONADO POR PADRÃO
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -903,9 +903,10 @@
                 return;
             }
 
-            container.innerHTML = sortedSafras.map(s => `
+            // O primeiro item (sortedSafras[0]) é o ano mais recente e vem 'checked', os demais desmarcados
+            container.innerHTML = sortedSafras.map((s, idx) => `
                 <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 hover:text-slate-900">
-                    <input type="checkbox" name="chk-safra-item" value="${s}" checked onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
+                    <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
                     <span>Safra ${s}</span>
                 </label>
             `).join('');
@@ -924,7 +925,7 @@
             return Array.from(checked).map(i => i.value);
         }
 
-        // POPULAR SELETOR MULTI-CHECKBOX DE TALHÕES
+        // POPULAR TALHÕES COM OPÇÃO 'SELECIONAR TODOS'
         function populateTalhaoSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
@@ -948,20 +949,45 @@
                 return;
             }
 
-            container.innerHTML = sortedTalhoes.map(t => `
-                <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 hover:text-slate-900">
-                    <input type="checkbox" name="chk-talhao-item" value="${t}" checked onchange="updateGISMap()" class="chk-talhao-item h-3.5 w-3.5 text-origens-green rounded">
+            // Inserir checkbox 'Selecionar Todos' no topo + checkboxes individuais
+            let html = `
+                <label class="flex items-center gap-2 cursor-pointer font-bold text-emerald-800 border-b pb-1 mb-1 bg-emerald-50/50 p-1 rounded">
+                    <input type="checkbox" id="chk-master-talhao" checked onchange="toggleMasterTalhao(this)" class="h-3.5 w-3.5 text-origens-green rounded">
+                    <span>Selecionar Todos</span>
+                </label>
+            `;
+
+            html += sortedTalhoes.map(t => `
+                <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 hover:text-slate-900 px-1">
+                    <input type="checkbox" name="chk-talhao-item" value="${t}" checked onchange="syncMasterTalhaoCheck()" class="chk-talhao-item h-3.5 w-3.5 text-origens-green rounded">
                     <span>Talhão ${t}</span>
                 </label>
             `).join('');
+
+            container.innerHTML = html;
         }
 
-        function toggleAllTalhoes() {
+        function toggleMasterTalhao(masterChk) {
             const items = document.querySelectorAll('.chk-talhao-item');
-            if (!items.length) return;
-            const anyUnchecked = Array.from(items).some(i => !i.checked);
-            items.forEach(i => i.checked = anyUnchecked);
+            items.forEach(i => i.checked = masterChk.checked);
             updateGISMap();
+        }
+
+        function syncMasterTalhaoCheck() {
+            const items = document.querySelectorAll('.chk-talhao-item');
+            const master = document.getElementById('chk-master-talhao');
+            if (master && items.length) {
+                master.checked = Array.from(items).every(i => i.checked);
+            }
+            updateGISMap();
+        }
+
+        function toggleAllTalhoesBtn() {
+            const master = document.getElementById('chk-master-talhao');
+            if (master) {
+                master.checked = !master.checked;
+                toggleMasterTalhao(master);
+            }
         }
 
         function getSelectedTalhoes() {
@@ -1398,7 +1424,6 @@
             }
         }
 
-        // CRIAÇÃO DA CAMADA GEOJSON COM FILTRO DE MULTI-TALHÕES E MULTI-SAFRAS
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
