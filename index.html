@@ -363,7 +363,7 @@
                                 <div class="flex justify-between text-xs text-sm border-t border-slate-800 pt-1 mt-1"><span>Total Produto:</span><b id="vrate-sum-total" class="text-emerald-400 font-extrabold text-sm">---</b></div>
                             </div>
 
-                            <!-- EXPORTAR PARA MONITORES -->
+                            <!-- EXPORTAR PARA MONITORES (SHAPEFILE COMPLETO MULTI-ARQUIVOS) -->
                             <div class="space-y-2 border-t pt-3">
                                 <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar para Monitores</span>
                                 <div>
@@ -680,7 +680,6 @@
             initLeafletMap();
         }
 
-        // CARREGAMENTO COMPLETO DE FAZENDAS E USUÁRIOS AUTORIZADOS DO FIREBASE
         async function loadCloudData() {
             try {
                 const snapshot = await db.collection("farms").get();
@@ -703,7 +702,6 @@
                     farmsDatabase[doc.id] = { name: data.name || '', producer: data.producer || '', location: data.location || '', area: data.area || 0, geojson: parsedGeojson };
                 }
 
-                // LEITURA E POPULAÇÃO COMPLETA DA COLEÇÃO 'USERS' DO FIRESTORE
                 const usersSnap = await db.collection("users").get();
                 usersDatabase = [];
                 usersSnap.forEach(doc => {
@@ -750,6 +748,132 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function handleCreateFarm(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') {
+                alert("Apenas administradores master podem cadastrar fazendas!");
+                return false;
+            }
+
+            const idInput = document.getElementById('farm-id');
+            const producerInput = document.getElementById('farm-producer');
+            const nameInput = document.getElementById('farm-name');
+            const locationInput = document.getElementById('farm-location');
+            const areaInput = document.getElementById('farm-area');
+
+            const id = idInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+            const producer = producerInput.value.trim();
+            const name = nameInput.value.trim();
+            const location = locationInput.value.trim();
+            const area = parseFloat(areaInput.value);
+
+            if (!id || !name || !producer) {
+                alert("Por favor, preencha o ID, o Nome do Produtor e o Nome da propriedade!");
+                return false;
+            }
+
+            const initialGeoJSON = { "type": "FeatureCollection", "features": [] };
+
+            try {
+                const compressedZip = await compressGeoJSON(initialGeoJSON);
+                const payloadToSave = { 
+                    name: name, 
+                    producer: producer,
+                    location: location, 
+                    area: area, 
+                    geojsonZip: compressedZip,
+                    isChunked: false
+                };
+
+                await db.collection("farms").doc(id).set(payloadToSave);
+                farmsDatabase[id] = { name: name, producer: producer, location: location, area: area, geojson: initialGeoJSON };
+
+                populateFarmSelector();
+                renderAdminTables();
+                alert(`Fazenda ${name} (${producer}) cadastrada com sucesso na nuvem!`);
+                e.target.reset();
+            } catch (err) {
+                console.error("Erro ao salvar fazenda:", err);
+                alert("Falha ao salvar fazenda na nuvem: " + err.message);
+            }
+            return false;
+        }
+
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') {
+                alert("Apenas administradores master podem gerenciar acessos!");
+                return false;
+            }
+
+            const nameInput = document.getElementById('new-name');
+            const emailInput = document.getElementById('new-email');
+            const chkAll = document.getElementById('chk-farm-all');
+            const chkItems = document.querySelectorAll('.chk-farm-item:checked');
+
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim().toLowerCase();
+
+            if (!email) {
+                alert("Por favor, preencha o e-mail Google!");
+                return false;
+            }
+
+            let selectedFarms = [];
+            if (chkAll && chkAll.checked) {
+                selectedFarms = ['all'];
+            } else {
+                chkItems.forEach(chk => selectedFarms.push(chk.value));
+            }
+
+            if (!selectedFarms.length) {
+                alert("Por favor, marque pelo menos uma fazenda ou selecione 'TODAS AS FAZENDAS'!");
+                return false;
+            }
+
+            const userObj = { name: name, role: 'client', farms: selectedFarms };
+
+            try {
+                await db.collection("users").doc(email).set(userObj);
+                await loadCloudData();
+                alert(`E-mail ${email} autorizado com sucesso para as fazendas selecionadas!`);
+                e.target.reset();
+                if(chkAll) chkAll.checked = false;
+                toggleAllFarmsCheckboxes(chkAll);
+            } catch (err) {
+                console.error("Erro ao autorizar usuário:", err);
+                alert("Falha ao autorizar e-mail na nuvem: " + err.message);
+            }
+            return false;
+        }
+
+        async function deleteFarm(key) {
+            if (currentUserRole !== 'admin') return;
+            if(confirm("Deseja excluir esta fazenda do banco na nuvem?")) {
+                try {
+                    await db.collection("farms").doc(key).delete();
+                    delete farmsDatabase[key];
+                    populateFarmSelector();
+                    renderAdminTables();
+                } catch (err) { alert("Erro ao excluir fazenda: " + err.message); }
+            }
+        }
+
+        async function deleteUser(email) {
+            if (currentUserRole !== 'admin') return;
+            if(confirm("Deseja remover a permissão deste e-mail?")) {
+                try {
+                    await db.collection("users").doc(email).delete();
+                    await loadCloudData();
+                } catch (err) { alert("Erro ao excluir permissão: " + err.message); }
+            }
+        }
+
+        function toggleAllFarmsCheckboxes(masterChk) {
+            const items = document.querySelectorAll('.chk-farm-item');
+            items.forEach(chk => chk.checked = masterChk.checked);
         }
 
         function switchTab(tab) {
@@ -856,6 +980,16 @@
                     vrateSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
                 }
             });
+
+            const checkboxContainer = document.getElementById('new-farm-checkboxes');
+            if (checkboxContainer) {
+                checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                        <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
+                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? `(${farmsDatabase[k].producer})` : ''} - ${farmsDatabase[k].location}</span>
+                    </label>
+                `).join('');
+            }
 
             populateSafraSelector();
             populateTalhaoSelector();
