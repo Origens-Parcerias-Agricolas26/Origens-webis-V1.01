@@ -154,7 +154,7 @@
                                     </select>
                                 </div>
 
-                                <!-- SELETOR DE DATA DA PASSAGEM DO SATÉLITE -->
+                                <!-- SELETOR DE DATA INTEGRADO -->
                                 <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
                                     <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
@@ -1171,7 +1171,7 @@
             }
         }
 
-        // CARREGAMENTO DE CAMADAS DE SATÉLITE COM SELETOR DE DATA INTEGRADO E NASA GIBS WMS
+        // CARREGAMENTO DE CAMADAS DE SATÉLITE COM SELETOR DE DATA INTEGRADO E FALLBACK DE NUVENS
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
@@ -1179,7 +1179,7 @@
             const satDateBox = document.getElementById('box-sat-date');
             const satDateInput = document.getElementById('sel-sat-date');
 
-            // Exibir a caixa de data se a opção for Cor Real ou NDVI
+            // Exibir a caixa de data para as opções do Sentinel
             if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
                 if (satDateBox) satDateBox.classList.remove('hidden');
             } else {
@@ -1199,17 +1199,27 @@
             const esriUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
             const googleUrl = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 
+            const attachAntiBlankFallback = (layerLeft, layerRight) => {
+                const applyFallback = (e) => {
+                    if (e.tile) {
+                        e.tile.src = esriUrl.replace('{z}', e.coords.z).replace('{y}', e.coords.y).replace('{x}', e.coords.x);
+                    }
+                };
+                layerLeft.on('tileerror', applyFallback);
+                layerRight.on('tileerror', applyFallback);
+            };
+
             if (selectedType === 'google') {
                 tileLayerLeft = L.tileLayer(googleUrl, { attribution: 'Google Satellite', maxZoom: 18 }).addTo(mapLeft);
                 tileLayerRight = L.tileLayer(googleUrl, { attribution: 'Google Satellite', maxZoom: 18 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_rgb') {
-                // NASA GIBS WMS Sentinel-2 L2A TrueColor com suporte estrito ao parâmetro TIME
+                // NASA GIBS WMS Sentinel-2 L2A TrueColor com parâmetro TIME dinâmico
                 tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
                     layers: 'Sentinel_2_L2A_TrueColor',
                     format: 'image/png',
                     transparent: true,
-                    TIME: dateVal,
+                    time: dateVal,
                     attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapLeft);
@@ -1218,17 +1228,34 @@
                     layers: 'Sentinel_2_L2A_TrueColor',
                     format: 'image/png',
                     transparent: true,
-                    TIME: dateVal,
+                    time: dateVal,
                     attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
                     maxZoom: 18
                 }).addTo(mapRight);
 
+                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
+
             } else if (selectedType === 'sentinel_ndvi') {
-                tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapLeft);
-                tileLayerRight = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapRight);
-                
-                if (mapLeftEl) mapLeftEl.classList.add('ndvi-filter');
-                if (mapRightEl) mapRightEl.classList.add('ndvi-filter');
+                // NASA GIBS WMS Sentinel-2 L2A NDVI com parâmetro TIME dinâmico
+                tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    time: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
+                    maxZoom: 18
+                }).addTo(mapLeft);
+
+                tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+                    layers: 'Sentinel_2_L2A_NDVI',
+                    format: 'image/png',
+                    transparent: true,
+                    time: dateVal,
+                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
+                    maxZoom: 18
+                }).addTo(mapRight);
+
+                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
 
             } else {
                 tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Origens &copy; Esri', maxZoom: 18 }).addTo(mapLeft);
@@ -1740,247 +1767,39 @@
             ctx.font = "14px Helvetica, Arial";
             ctx.fillText("www.origens.agr.br", 50, canvas.height - 35);
             ctx.textAlign = "right";
-            ctx.fillText("Escala Automática | Sistema WGS 84", canvas.width - 50, canvas.height - 35);
+            ctx.fillText("Escala Automática | Sistema WGS 84", canvas.width - 5Entendido. Analisando a gravação do sistema GIS, foram identificados **dois problemas técnicos de integração na camada de mapa**:
 
-            return canvas.toDataURL('image/jpeg', 0.98);
-        }
+---
 
-        function generatePerfectPDF() {
-            const btnText = document.getElementById('pdf-btn-text');
-            btnText.innerText = "Gerando PDF...";
+### 1. Imagem Cor Real (RGB) Não Aparece
+* **Sintoma:** Ao selecionar a camada *"Satélite Cor Real (Destacar Limites)"* e alterar as datas no calendário, o fundo do mapa permanece em branco (aparecem apenas os vetores dos limites).
+* **Causa Técnica Provável:** 
+  * A requisição para o provedor de imagens de satélite (Sentinel-2 / Copernicus via Leaflet) para a camada RGB está retornando erro na requisição (status HTTP 400/404/500) ou a chave/parâmetros da URL do *TileLayer* não estão configurados corretamente para a camada de cor real.
+  * O parâmetro de data inserido no seletor não está sendo formatado/passado corretamente para o endpoint da API de imagem real.
 
-            const selectedFarmKey = document.getElementById('sel-farm').value;
-            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
-            const depthKey = document.getElementById('sel-depth').value;
-            const param = document.getElementById('sel-param').value;
-            const depthText = depthKey.replace('d', '').replace('_', '-') + ' cm';
-            const rules = getQGISRules(param);
+---
 
-            const depthConfig = { key: depthKey, titleText: `${depthText}` };
-            const imgData = drawCanvasForParam(param, depthConfig, farmInfo, rules);
+### 2. NDVI Fixo / Não Atualiza com a Data
+* **Sintoma:** Ao selecionar *"Satélite NDVI (Vigor Vegetativo Falso Cor)"* e alterar a data (de março de 2024 para junho de 2024, por exemplo), o mapa não recarrega as *tiles* do NDVI e mantém a mesma imagem estática.
+* **Causa Técnica Provável:** 
+  * Faltou vincular o evento de alteração do calendário (`onChange` do campo *"Data da Imagem"*) com a atualização do parâmetro de data da camada TileLayer no Leaflet (ex.: chamar `tileLayer.setUrl(...)` ou re-instanciar a camada quando a data muda).
+  * O estado da data selecionada está desconectado do componente que renderiza o NDVI.
 
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
-            pdf.save(`Laudo_${param}_${depthText.replace(/\s+/g, '_')}_${farmInfo.name.replace(/\s+/g, '_')}.pdf`);
+---
 
-            btnText.innerText = "Exportar Laudo PDF Atual";
-        }
+### 🛠️ Como Corrigir (Orientação para o Desenvolvedor)
 
-        async function generateBatchPDFs() {
-            const batchBtnText = document.getElementById('pdf-batch-btn-text');
-            batchBtnText.innerText = "Processando Lote...";
+1. **Vincular o evento do Datepicker à camada de Satélite:**
+   * Certifique-se de que, ao disparar o evento `change` do seletor de data, a função responsável por renderizar a camada ativa (seja RGB ou NDVI) receba a nova string de data no formato esperado pela API (ex: `YYYY-MM-DD`).
 
-            const selectedFarmKey = document.getElementById('sel-farm').value;
-            const farmInfo = farmsDatabase[selectedFarmKey] || { name: 'Fazenda', location: 'Brasil' };
+2. **Atualização da Camada Leaflet:**
+   * Ao trocar a data com a camada ativa, execute a atualização das imagens no mapa:
+     ```javascript
+     // Exemplo de atualização de TileLayer dinâmico
+     map.removeLayer(currentSatLayer);
+     currentSatLayer = L.tileLayer(getSatelliteUrl(selectedDate, selectedType), { ... });
+     map.addLayer(currentSatLayer);
+     ```
 
-            const depthsList = [
-                { key: 'd0_10', titleText: '0-10 cm' },
-                { key: 'd10_20', titleText: '10-20 cm' },
-                { key: 'd20_40', titleText: '20-40 cm' }
-            ];
-
-            const paramsList = [
-                'Argila', 'MO', 'Classes de MO', 'pH_CaCl2', 'pH_água',
-                'P', 'Classes de P', 'K', 'Ca', 'Mg', 'S',
-                'Al', 'H', 'Sb', 'CTC', 'V%', 'Sat. Al',
-                'Ca%', 'Mg%', 'K%', 'Zn', 'Cu', 'Mn', 'B'
-            ];
-
-            const zip = new JSZip();
-            const { jsPDF } = window.jspdf;
-
-            let totalFiles = paramsList.length * depthsList.length;
-            let count = 0;
-
-            for (let d = 0; d < depthsList.length; d++) {
-                const depthObj = depthsList[d];
-                for (let i = 0; i < paramsList.length; i++) {
-                    const paramName = paramsList[i];
-                    count++;
-                    batchBtnText.innerText = `Gerando (${count}/${totalFiles}) ${paramName} (${depthObj.titleText})...`;
-
-                    const rules = getQGISRules(paramName);
-                    const imgData = drawCanvasForParam(paramName, depthObj, farmInfo, rules);
-
-                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
-
-                    const pdfBlob = pdf.output('blob');
-                    const fileName = `Laudo_${paramName}_${depthObj.titleText.replace(/\s+/g, '')}.pdf`;
-                    zip.file(fileName, pdfBlob);
-
-                    await new Promise(resolve => setTimeout(resolve, 30));
-                }
-            }
-
-            batchBtnText.innerText = "Compactando ZIP...";
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `Lote_Completo_Laudos_${farmInfo.name.replace(/\s+/g, '_')}.zip`;
-            link.click();
-
-            batchBtnText.innerText = "Exportar Lote de PDFs - Todas Camadas (.ZIP)";
-        }
-
-        function processUploadedFiles() {
-            if (currentUserRole !== 'admin') {
-                alert("Apenas o Administrador Master pode realizar importações de projetos.");
-                return;
-            }
-
-            const selectedFarmKey = document.getElementById('sel-farm').value;
-            const uploadSafraYear = document.getElementById('upload-safra-year').value;
-            const shpInput = document.getElementById('file-shp');
-            const excel010 = document.getElementById('file-excel-0-10');
-            const excel1020 = document.getElementById('file-excel-10-20');
-            const excel2040 = document.getElementById('file-excel-20-40');
-
-            if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) {
-                alert('Por favor, selecione uma fazenda ativa!');
-                return;
-            }
-
-            const currentFarm = farmsDatabase[selectedFarmKey];
-
-            const runProcessGeoJSON = async (baseGeoJSON) => {
-                const parseExcel = (fileInput, fallbackDepthKey) => {
-                    return new Promise((resolve) => {
-                        if (fileInput.files.length) {
-                            const exReader = new FileReader();
-                            exReader.onload = function(exEvt) {
-                                const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
-                                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                                const data = XLSX.utils.sheet_to_json(sheet);
-                                
-                                data.forEach(r => {
-                                    let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba || r.GLEBA || r.Original || r.ORIGINAL;
-                                    if (rawSub) {
-                                        const subClean = cleanString(rawSub);
-                                        const cleanRow = sanitizeAndCalculateSoilData(r);
-                                        
-                                        let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
-                                        if (!safraVal) safraVal = '2026';
-
-                                        let targetDepthKey = fallbackDepthKey;
-                                        const profVal = String(r.Prof || r.Profundidade || r.PROF || '').trim();
-                                        if (profVal.includes('10-20')) targetDepthKey = 'd10_20';
-                                        else if (profVal.includes('20-40')) targetDepthKey = 'd20_40';
-                                        else if (profVal.includes('0-10')) targetDepthKey = 'd0_10';
-
-                                        baseGeoJSON.features.forEach(f => {
-                                            if (f.properties) {
-                                                let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.TALHAO || f.properties.Talhao || f.properties.Gleba || f.properties.Original;
-                                                if (fSub && cleanString(fSub) === subClean) {
-                                                    f.properties.safras_historico = f.properties.safras_historico || {};
-                                                    f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
-                                                    f.properties.safras_historico[safraVal][targetDepthKey] = cleanRow;
-                                                    
-                                                    f.properties[targetDepthKey + '_' + safraVal] = cleanRow;
-                                                    f.properties[targetDepthKey] = cleanRow;
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-                                resolve();
-                            };
-                            exReader.readAsBinaryString(fileInput.files[0]);
-                        } else {
-                            resolve();
-                        }
-                    });
-                };
-
-                await parseExcel(excel010, 'd0_10');
-                await parseExcel(excel1020, 'd10_20');
-                await parseExcel(excel2040, 'd20_40');
-
-                farmsDatabase[selectedFarmKey].geojson = baseGeoJSON;
-
-                const compressedZip = await compressGeoJSON(baseGeoJSON);
-
-                const CHUNK_SIZE = 700000;
-                
-                try {
-                    if (compressedZip.length > CHUNK_SIZE) {
-                        const totalChunks = Math.ceil(compressedZip.length / CHUNK_SIZE);
-
-                        await db.collection("farms").doc(selectedFarmKey).set({
-                            name: String(farmsDatabase[selectedFarmKey].name || ''),
-                            producer: String(farmsDatabase[selectedFarmKey].producer || ''),
-                            location: String(farmsDatabase[selectedFarmKey].location || ''),
-                            area: Number(farmsDatabase[selectedFarmKey].area || 0),
-                            isChunked: true,
-                            chunkCount: totalChunks,
-                            geojsonZip: ''
-                        });
-
-                        for (let i = 0; i < totalChunks; i++) {
-                            const part = compressedZip.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-                            await db.collection("farms").doc(selectedFarmKey).collection("chunks").doc(`chunk_${i}`).set({
-                                index: i,
-                                content: part
-                            });
-                        }
-                    } else {
-                        await db.collection("farms").doc(selectedFarmKey).set({
-                            name: String(farmsDatabase[selectedFarmKey].name || ''),
-                            producer: String(farmsDatabase[selectedFarmKey].producer || ''),
-                            location: String(farmsDatabase[selectedFarmKey].location || ''),
-                            area: Number(farmsDatabase[selectedFarmKey].area || 0),
-                            geojsonZip: compressedZip,
-                            isChunked: false
-                        });
-                    }
-
-                    populateSafraSelector();
-                    populateTalhaoSelector();
-                    updateGISMap();
-                    alert(`Planilhas da Safra ${uploadSafraYear !== 'auto' ? uploadSafraYear : ''} salvas na nuvem com sucesso!`);
-                } catch (err) {
-                    console.error("Erro ao salvar no Firestore:", err);
-                    alert("Erro ao salvar projeto na nuvem: " + err.message);
-                }
-            };
-
-            if (shpInput.files.length) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    shp(e.target.result).then(function (newGeojson) {
-                        let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
-
-                        if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
-                            const oldFeatureMap = {};
-                            currentFarm.geojson.features.forEach(oldF => {
-                                let fSub = oldF.properties ? (oldF.properties.Subs || oldF.properties.Subdivisao || oldF.properties.Talhao) : null;
-                                if (fSub) oldFeatureMap[cleanString(fSub)] = oldF.properties;
-                            });
-
-                            finalGeoJSON.features.forEach(newF => {
-                                let fSub = newF.properties ? (newF.properties.Subs || newF.properties.Subdivisao || newF.properties.Talhao) : null;
-                                if (fSub && oldFeatureMap[cleanString(fSub)]) {
-                                    newF.properties = { ...oldFeatureMap[cleanString(fSub)], ...newF.properties };
-                                }
-                            });
-                        }
-
-                        runProcessGeoJSON(finalGeoJSON);
-                    }).catch(err => {
-                        alert('Erro ao carregar o .zip. Verifique se o ZIP contém os arquivos .shp, .dbf, .shx e .prj.');
-                    });
-                };
-                reader.readAsArrayBuffer(shpInput.files[0]);
-            } else {
-                if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
-                    runProcessGeoJSON(currentFarm.geojson);
-                } else {
-                    alert('Por favor, selecione ao menos o arquivo Shapefile (.zip) para cadastrar a geometria inicial dos talhões!');
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+3. **Verificar os endpoints no DevTools (F12):**
+   * Abra a aba **Network (Rede)** no navegador ao selecionar a imagem Cor Real para verificar a URL solicitada e se há erros de resposta (como *403 Forbidden*, *404 Not Found* ou parâmetros de busca inválidos).
