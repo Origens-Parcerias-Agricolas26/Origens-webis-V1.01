@@ -112,7 +112,6 @@
                             <i class="fa-solid fa-layer-group text-origens-green"></i><span>Visualizador GIS</span>
                         </button>
 
-                        <!-- NOVO BOTÃO DE TAXA VARIÁVEL -->
                         <button onclick="switchTab('vrate')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-vrate">
                             <i class="fa-solid fa-tractor text-amber-500"></i><span>Taxa Variável & Prescrição</span>
                         </button>
@@ -137,7 +136,7 @@
                 <div id="content-maps" class="h-full flex gap-6">
                     <div class="w-80 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between overflow-y-auto">
                         <div class="space-y-5">
-                            <h3 class="text-sm font-extrabold text-slate-900 uppercase border-b pb-2"><i class="fa-solid fa-sliders mr-2"></i>Controle do WebGIS</h3>
+                            <h3 class="text-sm font-extrabold text-slate-900 uppercase border-b pb-2"><i class="fa-solid fa-sliders mr-2"></i>Controle de Solo</h3>
                             
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fazenda Selecionada</label>
@@ -274,7 +273,7 @@
                     </div>
                 </div>
 
-                <!-- MÓDULO 2: TAXA VARIÁVEL & ADUBAÇÃO -->
+                <!-- MÓDULO 2: TAXA VARIÁVEL & PRESCRIÇÃO -->
                 <div id="content-vrate" class="hidden h-full flex gap-6">
                     <div class="w-96 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between overflow-y-auto space-y-5">
                         <div class="space-y-4">
@@ -849,7 +848,7 @@
         }
 
         // =========================================================================
-        // LÓGICA DO MÓDULO: TAXA VARIÁVEL & PRESCRIÇÃO
+        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL (LINK COM KCl.xlsx E SHAPEFILE)
         // =========================================================================
         function initVRateMap() {
             if (!vrateMap) {
@@ -876,13 +875,14 @@
             if (vrateGeojsonLayer.getBounds().isValid()) vrateMap.fitBounds(vrateGeojsonLayer.getBounds());
         }
 
+        // VINCULAR 'Subs' DA PLANILHA (ex: KCl.xlsx) AO SHAPEFILE / GEOJSON
         function processVRateExcel() {
             const farmKey = document.getElementById('vrate-sel-farm').value;
             const fileInput = document.getElementById('vrate-excel-file');
             const product = document.getElementById('vrate-product').value;
             const unit = document.getElementById('vrate-unit').value;
 
-            if (!fileInput.files.length) { alert('Por favor, selecione a planilha Excel com as recomendações de dose!'); return; }
+            if (!fileInput.files.length) { alert('Por favor, selecione a planilha Excel com as recomendações!'); return; }
 
             const farmObj = farmsDatabase[farmKey];
             if (!farmObj || !farmObj.geojson) { alert('Selecione uma fazenda válida.'); return; }
@@ -893,10 +893,12 @@
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet);
 
+                // Mapear chave 'Subs' -> 'Doses'
                 let doseMap = {};
                 rows.forEach(r => {
-                    let subKey = cleanString(r.Subs || r.Subdivisao || r.Talhao || r.TALHAO || r.Gleba);
-                    let doseVal = parseFloat(String(r.Dose || r.DOSE || r.Recomendacao || r.Taxa || 0).replace(',', '.'));
+                    let subKey = cleanString(r.Subs || r.SUBS || r.subs || r.Subdivisao || r.Talhao || r.TALHAO || r.Gleba);
+                    let rawDose = r.Doses !== undefined ? r.Doses : (r.DOSES !== undefined ? r.DOSES : (r.Dose !== undefined ? r.Dose : (r.DOSE !== undefined ? r.DOSE : (r.Recomendacao || r.Taxa))));
+                    let doseVal = parseFloat(String(rawDose || 0).replace(',', '.'));
                     if (subKey) doseMap[subKey] = isNaN(doseVal) ? 0 : doseVal;
                 });
 
@@ -907,30 +909,54 @@
 
                 vrateGeojsonLayer = L.geoJSON(farmObj.geojson, {
                     style: f => {
-                        let subClean = cleanString(f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao);
+                        // Identificar propriedade Subs da feição no Shapefile
+                        let subClean = cleanString(f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao);
                         let dose = doseMap[subClean] !== undefined ? doseMap[subClean] : 0;
-                        let area = parseFloat(f.properties.Area || 0);
+                        let area = parseFloat(f.properties.Area || f.properties.AREA || 0);
 
-                        totalArea += area;
-                        totalProduct += (dose * area);
+                        if (dose > 0) {
+                            totalArea += area;
+                            totalProduct += (dose * area);
+                        }
 
-                        vrateProcessedData.push({ talhao: f.properties.Talhao, subs: f.properties.Subs || 'Gleba', area: area, dose: dose, total: (dose * area) });
+                        // Gravar propriedade de dose na feição para exportação aos monitores
+                        f.properties.Rate = dose;
+                        f.properties.DOSE = dose;
+                        f.properties.Produto = product;
 
-                        let color = '#fee2e2';
-                        if (dose > 300) color = '#15803d';
-                        else if (dose > 200) color = '#22c55e';
-                        else if (dose > 100) color = '#facc15';
+                        vrateProcessedData.push({ 
+                            talhao: f.properties.Talhao || 'N/A', 
+                            subs: f.properties.Subs || f.properties.Subdivisao || 'Gleba', 
+                            area: area, 
+                            dose: dose, 
+                            total: (dose * area) 
+                        });
+
+                        // Gradiente de cor por faixas de dose
+                        let color = '#f1f5f9';
+                        if (dose > 250) color = '#15803d';
+                        else if (dose > 180) color = '#22c55e';
+                        else if (dose > 120) color = '#facc15';
                         else if (dose > 0) color = '#f97316';
 
-                        return { fillColor: color, fillOpacity: 0.85, color: '#1e3a8a', weight: 1.5 };
+                        return { fillColor: color, fillOpacity: dose > 0 ? 0.85 : 0.2, color: '#1e3a8a', weight: 1.5 };
                     },
                     onEachFeature: (f, layer) => {
-                        let subClean = cleanString(f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao);
+                        let subClean = cleanString(f.properties.Subs || f.properties.SUBS || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao);
                         let dose = doseMap[subClean] !== undefined ? doseMap[subClean] : 0;
-                        layer.bindPopup(`<b>Talhão ${f.properties.Talhao} (${f.properties.Subs})</b><br>Dose ${product}: <b>${dose} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}</b>`);
+                        let subName = f.properties.Subs || f.properties.Subdivisao || 'Subdivisão';
+                        layer.bindPopup(`
+                            <div class="p-1">
+                                <b class="text-sm text-slate-900 block border-b pb-1">${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b>
+                                <span class="text-xs text-slate-600 block mt-1">Área: <b>${format1Decimal(f.properties.Area)} ha</b></span>
+                                <span class="text-xs text-slate-800 block">Dose ${product}: <b class="text-amber-600">${dose} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}</b></span>
+                                <span class="text-xs text-slate-800 block">Total Insumo: <b class="text-emerald-600">${format1Decimal(dose * parseFloat(f.properties.Area || 0))} ${unit === 'kg_ha' ? 'kg' : 't'}</b></span>
+                            </div>
+                        `);
                     }
                 }).addTo(vrateMap);
 
+                // Exibir caixa de Resumo Executivo
                 document.getElementById('vrate-summary-box').classList.remove('hidden');
                 document.getElementById('vrate-sum-prod').innerText = `${product} (${unit === 'kg_ha' ? 'kg/ha' : 't/ha'})`;
                 document.getElementById('vrate-sum-area').innerText = `${format1Decimal(totalArea)} ha`;
@@ -941,19 +967,21 @@
                 let finalTotalStr = unit === 'kg_ha' ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` : `${format1Decimal(totalProduct)} Toneladas`;
                 document.getElementById('vrate-sum-total').innerText = finalTotalStr;
 
+                // Legenda de Doses
                 document.getElementById('vrate-legend-items').innerHTML = `
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#15803d"></div><span>Dose Alta (> 300)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#22c55e"></div><span>Dose Média-Alta (200 - 300)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#facc15"></div><span>Dose Média (100 - 200)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#f97316"></div><span>Dose Baixa (1 - 100)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#fee2e2"></div><span>Sem Aplicação (0)</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#15803d"></div><span>Dose Alta (> 250)</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#22c55e"></div><span>Dose Média-Alta (180 - 250)</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#facc15"></div><span>Dose Média (120 - 180)</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#f97316"></div><span>Dose Baixa (1 - 120)</span></div>
+                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#f1f5f9; border: 1px solid #cbd5e1;"></div><span>Sem Aplicação (0)</span></div>
                 `;
 
-                alert('Mapa de prescrição a taxa variável processado com sucesso!');
+                alert(`Planilha vinculada com sucesso pelo código Subs!\nForam encontradas recomendações para ${vrateProcessedData.filter(d => d.dose > 0).length} áreas.`);
             };
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
+        // EXPORTAÇÃO PARA MONITORES
         async function exportForMonitor() {
             if (!vrateProcessedData.length) { alert('Processe primeiro a planilha de prescrição para exportar aos monitores!'); return; }
 
