@@ -363,18 +363,21 @@
                                 <div class="flex justify-between text-xs text-sm border-t border-slate-800 pt-1 mt-1"><span>Total Produto:</span><b id="vrate-sum-total" class="text-emerald-400 font-extrabold text-sm">---</b></div>
                             </div>
 
-                            <!-- EXPORTAR PARA MONITORES -->
+                            <!-- EXPORTAR PARA MONITORES (CAMINHOS REAIS ATUALIZADOS) -->
                             <div class="space-y-2 border-t pt-3">
                                 <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar para Monitores</span>
                                 <div>
                                     <label class="block text-[11px] font-bold text-slate-600 mb-1">Selecione a Marca / Sistema do Trator</label>
                                     <select id="vrate-monitor-brand" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-800">
-                                        <option value="johndeere">John Deere (GreenStar / GS3 / GS4 / G5)</option>
-                                        <option value="trimble">Trimble (CFX-750 / TMX / GFX-750)</option>
-                                        <option value="stara">Stara (Topper 4500 / 5500)</option>
-                                        <option value="jacto">Jacto (OtMIS / Omni 700)</option>
-                                        <option value="agres">Agres (Isoview)</option>
-                                        <option value="isobus">ISO-XML Genérico (ISOBUS / TaskData)</option>
+                                        <option value="johndeere">John Deere (GS2 / GS3 / GS4 / G5) - [Rx\]</option>
+                                        <option value="trimble_aggps">Trimble (CFX-750 / FM-750 / FM-1000) - [AgGPS\Prescriptions\]</option>
+                                        <option value="trimble_agdata">Trimble (GFX-750 / TMX-2050) - [AgData\Prescriptions\]</option>
+                                        <option value="stara">Stara (Topper 4500 / 5500) - [Dados\Mapas\]</option>
+                                        <option value="raven">Raven (CR7 / VIPER 4) - [rxMaps\]</option>
+                                        <option value="caseih">Case IH (Pro 700 / AFS) - [Shapefile\]</option>
+                                        <option value="jacto">Jacto (OtMIS / Omni 700) - [OtMIS\Maps\]</option>
+                                        <option value="agres">Agres (Isoview) - [Agres\Prescricao\]</option>
+                                        <option value="isobus">ISO-XML Genérico (ISOBUS / TaskData) - [TASKDATA\]</option>
                                     </select>
                                 </div>
                                 <button onclick="exportForMonitor()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold p-3 rounded-xl shadow text-xs flex items-center justify-center gap-2">
@@ -1351,9 +1354,12 @@
             let pathPrefix = "";
 
             switch (brand) {
-                case 'johndeere': pathPrefix = `RXT/Prescriptions/${farmObj.name.replace(/\s+/g, '_')}/`; break;
-                case 'trimble': pathPrefix = `AgData/Prescriptions/`; break;
-                case 'stara': pathPrefix = `Stara/TaxaVariavel/`; break;
+                case 'johndeere': pathPrefix = `Rx/`; break;
+                case 'trimble_aggps': pathPrefix = `AgGPS/Prescriptions/`; break;
+                case 'trimble_agdata': pathPrefix = `AgData/Prescriptions/`; break;
+                case 'stara': pathPrefix = `Dados/Mapas/`; break;
+                case 'raven': pathPrefix = `rxMaps/`; break;
+                case 'caseih': pathPrefix = `Shapefile/`; break;
                 case 'jacto': pathPrefix = `OtMIS/Maps/`; break;
                 case 'agres': pathPrefix = `Agres/Prescricao/`; break;
                 default: pathPrefix = `TASKDATA/`; break;
