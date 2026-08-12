@@ -334,6 +334,10 @@
                                         <option value="Ureia">Ureia</option>
                                         <option value="MAP">Fosfato Monoamônico (MAP)</option>
                                         <option value="DAP">Fosfato Diamônico (DAP)</option>
+                                        <option value="NPK">Formulados NPK</option>
+                                        <option value="Superfosfato_Simples">Superfosfato Simples</option>
+                                        <option value="Superfosfato_Triplo">Superfosfato Triplo</option>
+                                        <option value="Fosfato_Natural">Fosfato Natural</option>
                                         <option value="Calcario">Calcário</option>
                                         <option value="Gesso">Gesso Agrícola</option>
                                         <option value="Micronutrientes">Micronutrientes</option>
@@ -654,6 +658,7 @@
             return r;
         }
 
+        // BUSCA ROBUSTA DE DADOS NA SAFRA SELECIONADA
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1412,6 +1417,7 @@
             }
         }
 
+        // RENDERIZAÇÃO DA CAMADA COM RÓTULOS E VALORES CENTRAIS PERMANENTES
         function updateGISMap() {
             if (!mapLeft) return;
             const selectedFarmKey = document.getElementById('sel-farm').value;
@@ -1681,7 +1687,6 @@
                     });
                 });
 
-                // Identificar Doses Exatas Únicas Presentes no Arquivo para a Legenda Fixo-Pontual
                 vrateUniqueDoses = Array.from(new Set(vrateProcessedData.map(d => d.dose))).filter(d => d > 0).sort((a,b) => b - a);
 
                 vrateUpdateMap();
@@ -1696,7 +1701,6 @@
                 let finalTotalStr = unit === 'kg_ha' ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` : `${format1Decimal(totalProduct)} Toneladas`;
                 document.getElementById('vrate-sum-total').innerText = finalTotalStr;
 
-                // Montar Legenda com Doses Exatas Fixas
                 const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
                 let legendHTML = vrateUniqueDoses.map((d, i) => `
                     <div class="flex items-center gap-2">
@@ -1892,7 +1896,6 @@
                 currY += 38;
             });
 
-            // Opção Sem Aplicação
             ctx.fillStyle = "#f1f5f9";
             ctx.fillRect(legX + 15, currY - 16, 22, 22);
             ctx.strokeStyle = "#64748B";
@@ -1904,7 +1907,6 @@
             ctx.fillText(`Sem Aplicação (0 ${unitStr})`, legX + 48, currY);
             currY += 40;
 
-            // Quadro do Resumo Executivo
             ctx.fillStyle = "#0F172A";
             ctx.fillRect(legX + 15, currY, 340, 220);
             
