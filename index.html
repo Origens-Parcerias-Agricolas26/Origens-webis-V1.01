@@ -153,7 +153,7 @@
                                 </select>
                             </div>
 
-                            <!-- ANO SAFRA COM PRESERVAÇÃO DE HISTÓRICO E SELEÇÃO ÚNICA DO ANO MAIS RECENTE -->
+                            <!-- ANO SAFRA COM PRESERVAÇÃO DE HISTÓRICO -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
@@ -632,7 +632,7 @@
             return r;
         }
 
-        // BUSCA ESTRITA DA SAFRA SELECIONADA (SEM MISTURAR OUTROS ANOS)
+        // BUSCA DA SAFRA SELECIONADA (PRESERVA CADA ANO SEPARADAMENTE)
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1055,6 +1055,7 @@
             populateTalhaoSelector();
         }
 
+        // POPULA E SELECIONA APENAS A SAFRA MAIS RECENTE
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const container = document.getElementById('container-safra-checkboxes');
@@ -1085,7 +1086,6 @@
                 return;
             }
 
-            // Seleciona EXCLUSIVAMENTE a safra mais recente (primeiro elemento) e deixa as demais desmarcadas
             container.innerHTML = sortedSafras.map((s, idx) => `
                 <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
                     <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
@@ -1707,7 +1707,6 @@
                                                     f.properties.safras_historico = f.properties.safras_historico || {};
                                                     f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
                                                     f.properties.safras_historico[safraVal][fallbackDepthKey] = cleanRow;
-                                                    f.properties[fallbackDepthKey] = cleanRow;
                                                 }
                                             }
                                         });
@@ -1727,7 +1726,6 @@
                 farmsDatabase[farmKey].geojson = baseGeoJSON;
                 const compressedZip = await compressGeoJSON(baseGeoJSON);
 
-                // Gravação com preservação de estado via merge no Firestore
                 await db.collection("farms").doc(farmKey).set({
                     name: String(farmsDatabase[farmKey].name || ''),
                     producer: String(farmsDatabase[farmKey].producer || ''),
@@ -1749,7 +1747,6 @@
                     shp(e.target.result).then(function(newGeojson) {
                         let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
                         
-                        // Fusão das propriedades se a fazenda já possuir safras no Firestore
                         if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
                             const oldFeatureMap = {};
                             currentFarm.geojson.features.forEach(oldF => {
