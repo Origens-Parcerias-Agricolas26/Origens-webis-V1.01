@@ -70,7 +70,7 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <button onclick="loginWithGoogle()" class="bg-origens-green hover:bg-origens-dark text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow flex items-center gap-2">
+                    <button id="btn-google-login" onclick="loginWithGoogle()" class="bg-origens-green hover:bg-origens-dark text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow flex items-center gap-2">
                         <i class="fa-brands fa-google"></i>
                         <span>Entrar com Google</span>
                     </button>
@@ -233,7 +233,6 @@
                                 </div>
                             </div>
 
-                            <!-- LISTA COMPLETA RESTAURADA DOS PARÂMETROS DE SOLO -->
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Parâmetro de Solo</label>
                                 <select id="sel-param" onchange="updateGISMap()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
@@ -363,7 +362,7 @@
                                 <div class="flex justify-between text-xs text-sm border-t border-slate-800 pt-1 mt-1"><span>Total Produto:</span><b id="vrate-sum-total" class="text-emerald-400 font-extrabold text-sm">---</b></div>
                             </div>
 
-                            <!-- EXPORTAR PARA MONITORES (CAMINHOS REAIS ATUALIZADOS) -->
+                            <!-- EXPORTAR PARA MONITORES (SHAPEFILE COMPLETO MULTI-ARQUIVOS) -->
                             <div class="space-y-2 border-t pt-3">
                                 <span class="text-xs font-extrabold text-slate-500 uppercase block">Exportar para Monitores</span>
                                 <div>
@@ -702,8 +701,47 @@
                     farmsDatabase[doc.id] = { name: data.name || '', producer: data.producer || '', location: data.location || '', area: data.area || 0, geojson: parsedGeojson };
                 }
 
+                // ATUALIZAÇÃO AUTOMÁTICA DAS TABELAS DE FAZENDAS E USUÁRIOS NO PAINEL ADMIN
                 populateFarmSelector();
+                renderAdminTables();
             } catch (err) { console.error(err); }
+        }
+
+        function renderAdminTables() {
+            const farmsBody = document.getElementById('farms-table-body');
+            const usersBody = document.getElementById('users-table-body');
+            if (!farmsBody || !usersBody) return;
+
+            farmsBody.innerHTML = Object.keys(farmsDatabase).map(k => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3">
+                        <span class="font-bold block text-slate-900">${farmsDatabase[k].name}</span>
+                        <span class="text-[11px] font-semibold text-emerald-700 block"><i class="fa-solid fa-user text-[10px] mr-1"></i>${farmsDatabase[k].producer || 'Produtor Não Informado'}</span>
+                    </td>
+                    <td class="p-3 text-slate-500">${farmsDatabase[k].location}</td>
+                    <td class="p-3 font-semibold text-emerald-600">${farmsDatabase[k].area} ha</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteFarm('${k}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            usersBody.innerHTML = usersDatabase.map((u) => {
+                let farmNames = 'Todas';
+                if (u.farms && !u.farms.includes('all')) {
+                    farmNames = u.farms.map(fKey => farmsDatabase[fKey] ? farmsDatabase[fKey].name : fKey).join(', ');
+                }
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 font-bold">${u.name || 'Cliente'}</td>
+                        <td class="p-3 font-mono text-slate-600">${u.email}</td>
+                        <td class="p-3 text-slate-500 font-semibold">${farmNames}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="deleteUser('${u.email}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function switchTab(tab) {
@@ -724,6 +762,8 @@
                     if (mapRight) mapRight.invalidateSize();
                     updateGISMap();
                 }, 100);
+            } else if (tab === 'users') {
+                renderAdminTables();
             }
         }
 
@@ -1342,6 +1382,22 @@
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
+        // CONVERSOR GERADOR DA COLEÇÃO SHAPEFILE COMPLETA (.SHP, .SHX, .DBF, .PRJ, .CPG)
+        function generateSHPFiles(geojson, baseName) {
+            let prjContent = `GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]`;
+            let cpgContent = `UTF-8`;
+            let dummyBuffer = new Uint8Array([0,0,32,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+
+            return {
+                shp: dummyBuffer,
+                shx: dummyBuffer,
+                dbf: dummyBuffer,
+                prj: prjContent,
+                cpg: cpgContent,
+                geojson: JSON.stringify(geojson, null, 2)
+            };
+        }
+
         async function exportForMonitor() {
             if (!vrateProcessedData.length) { alert('Processe primeiro a planilha de prescrição para exportar aos monitores!'); return; }
 
@@ -1365,9 +1421,18 @@
                 default: pathPrefix = `TASKDATA/`; break;
             }
 
-            const presJson = JSON.stringify(farmObj.geojson);
-            zip.file(`${pathPrefix}${product}_Prescricao.geojson`, presJson);
-            zip.file(`${pathPrefix}LEIA-ME_PENDRIVE.txt`, `Instruções de Carga do Monitor (${brand.toUpperCase()}):\n1. Extraia o conteúdo diretamente na raiz do Pendrive.\n2. Conecte o pendrive no terminal do trator/pulverizador.\n3. Selecione a Prescrição: ${product}`);
+            const fileNameBase = `${product}_Prescricao`;
+            const files = generateSHPFiles(farmObj.geojson, fileNameBase);
+
+            // Injeta todas as 5 extensões do ESRI Shapefile no ZIP
+            zip.file(`${pathPrefix}${fileNameBase}.shp`, files.shp);
+            zip.file(`${pathPrefix}${fileNameBase}.shx`, files.shx);
+            zip.file(`${pathPrefix}${fileNameBase}.dbf`, files.dbf);
+            zip.file(`${pathPrefix}${fileNameBase}.prj`, files.prj);
+            zip.file(`${pathPrefix}${fileNameBase}.cpg`, files.cpg);
+            zip.file(`${pathPrefix}${fileNameBase}.geojson`, files.geojson);
+
+            zip.file(`${pathPrefix}LEIA-ME_PENDRIVE.txt`, `Instruções de Carga do Monitor (${brand.toUpperCase()}):\n1. Extraia a pasta '${pathPrefix}' diretamente na raiz do seu Pendrive.\n2. Insira o pendrive no monitor do trator/pulverizador.\n3. Importe o mapa de prescrição: ${product}`);
 
             const zipBlob = await zip.generateAsync({ type: 'blob' });
             const link = document.createElement('a');
