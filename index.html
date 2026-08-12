@@ -153,7 +153,6 @@
                                 </select>
                             </div>
 
-                            <!-- ANO SAFRA COM PRESERVAÇÃO DE HISTÓRICO -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
@@ -632,7 +631,7 @@
             return r;
         }
 
-        // BUSCA DA SAFRA SELECIONADA (PRESERVA CADA ANO SEPARADAMENTE)
+        // BUSCA DA SAFRA SELECIONADA
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1055,7 +1054,6 @@
             populateTalhaoSelector();
         }
 
-        // POPULA E SELECIONA APENAS A SAFRA MAIS RECENTE
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const container = document.getElementById('container-safra-checkboxes');
@@ -1158,6 +1156,10 @@
                 master.checked = !master.checked;
                 toggleMasterTalhao(master);
             }
+        }
+
+        function toggleLayers() {
+            updateGISMap();
         }
 
         function getSelectedSafras() {
@@ -1388,6 +1390,7 @@
             }
         }
 
+        // RENDERIZAÇÃO DA CAMADA COM RÓTULOS E VALORES CENTRAIS PERMANENTES
         function updateGISMap() {
             if (!mapLeft) return;
             const selectedFarmKey = document.getElementById('sel-farm').value;
@@ -1413,6 +1416,11 @@
             const depth = document.getElementById('sel-depth').value;
             const rules = getQGISRules(param);
 
+            // Ler estados das caixas de exibição
+            const showBoundary = document.getElementById('chk-boundary') ? document.getElementById('chk-boundary').checked : true;
+            const showLabels = document.getElementById('chk-labels') ? document.getElementById('chk-labels').checked : true;
+            const showValues = document.getElementById('chk-values') ? document.getElementById('chk-values').checked : true;
+
             const buildLayer = (depthKey) => L.geoJSON(currentGeoJSON, {
                 filter: f => !selectedTalhoes.length || selectedTalhoes.includes(String(f.properties.Talhao)),
                 style: f => {
@@ -1422,12 +1430,38 @@
                         const matched = rules.find(r => val >= r.min && val <= r.max); 
                         if (matched) color = matched.color; 
                     }
-                    return { fillColor: color, fillOpacity: 0.85, color: '#1d4ed8', weight: 1.5 };
+                    return { 
+                        fillColor: color, 
+                        fillOpacity: 0.85, 
+                        color: showBoundary ? '#1d4ed8' : 'transparent', 
+                        weight: showBoundary ? 1.5 : 0 
+                    };
                 },
                 onEachFeature: (f, layer) => {
-                    const val = format1Decimal(getFeatureDepthData(f, depthKey, selectedSafras)[param]);
+                    const depthData = getFeatureDepthData(f, depthKey, selectedSafras);
+                    const val = format1Decimal(depthData[param]);
                     const displayVal = (val !== null && val !== undefined) ? val : 'N/A';
-                    layer.bindPopup(`<b>${f.properties.Subs || 'Gleba'} (Talhão ${f.properties.Talhao})</b><br>${param}: <b>${displayVal}</b>`);
+                    const subName = f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao || 'Gleba';
+
+                    layer.bindPopup(`<b>${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b><br>${param}: <b>${displayVal}</b>`);
+
+                    // Montagem e fixação dos rótulos permanentes sobre os polígonos
+                    let labelText = "";
+                    if (showLabels && showValues) {
+                        labelText = `${subName}: ${displayVal}`;
+                    } else if (showLabels) {
+                        labelText = `${subName}`;
+                    } else if (showValues) {
+                        labelText = `${displayVal}`;
+                    }
+
+                    if (labelText !== "") {
+                        layer.bindTooltip(labelText, { 
+                            permanent: true, 
+                            direction: 'center', 
+                            className: 'bg-slate-900/80 text-white font-bold text-[10px] px-1 py-0.5 rounded shadow text-center border-0' 
+                        });
+                    }
                 }
             });
 
