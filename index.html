@@ -153,6 +153,7 @@
                                 </select>
                             </div>
 
+                            <!-- ANO SAFRA COM SELEÇÃO ÚNICA/SISTEMÁTICA DA SAFRA MAIS RECENTE -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
@@ -560,7 +561,6 @@
             return null;
         }
 
-        // LIMPEZA DE TEXTO FLEXÍVEL PARA BATER SUCUPIRA-A COM SUCUPIRA-A (Talhão SUCUPIRA)
         function cleanString(str) {
             if (!str) return '';
             let base = String(str).toLowerCase().split('(')[0];
@@ -570,12 +570,14 @@
         function sanitizeAndCalculateSoilData(row) {
             if (!row || typeof row !== 'object') return {};
             const r = { ...row };
+
             Object.keys(r).forEach(k => {
                 if (typeof r[k] === 'string' && r[k].includes(',')) {
                     const parsed = format1Decimal(r[k]);
                     if (parsed !== null) r[k] = parsed;
                 }
             });
+
             const ca = format1Decimal(r.Ca) || 0;
             const mg = format1Decimal(r.Mg) || 0;
             const rawK = format1Decimal(r.K) || 0;
@@ -588,22 +590,63 @@
             if (!r.Sb || isNaN(parseFloat(String(r.Sb).replace(',','.')))) { if (sbCalc > 0) r.Sb = format1Decimal(sbCalc); }
             if (!r['V%'] || isNaN(parseFloat(String(r['V%']).replace(',','.')))) { if (ctcCalc > 0) r['V%'] = format1Decimal((sbCalc / ctcCalc) * 100); }
             if (!r['Sat. Al'] || isNaN(parseFloat(String(r['Sat. Al']).replace(',','.')))) { if ((sbCalc + al) > 0) r['Sat. Al'] = format1Decimal((al / (sbCalc + al)) * 100); }
+
+            if (r.MO !== undefined && r.MO !== null && r.MO !== '') {
+                const moVal = format1Decimal(r.MO);
+                r.MO = moVal;
+                if (!r['MO (%)']) r['MO (%)'] = moVal;
+                if (!r['Classes de MO'] || isNaN(parseFloat(String(r['Classes de MO'])))) {
+                    if (moVal !== null) {
+                        if (moVal >= 40) r['Classes de MO'] = 1;
+                        else if (moVal >= 30) r['Classes de MO'] = 2;
+                        else if (moVal >= 20) r['Classes de MO'] = 3;
+                        else r['Classes de MO'] = 4;
+                    }
+                }
+            }
+
+            if (r.P !== undefined && r.P !== null && r.P !== '') {
+                const pVal = format1Decimal(r.P);
+                r.P = pVal;
+                if (!r['Classes de P'] || isNaN(parseFloat(String(r['Classes de P'])))) {
+                    if (pVal !== null) {
+                        if (pVal >= 18.1) r['Classes de P'] = 5;
+                        else if (pVal >= 12.1) r['Classes de P'] = 4;
+                        else if (pVal >= 8.1) r['Classes de P'] = 3;
+                        else if (pVal >= 3.1) r['Classes de P'] = 2;
+                        else r['Classes de P'] = 1;
+                    }
+                }
+            }
+
+            let rawArgila = r.Argila !== undefined ? r.Argila : (r.ARGILA !== undefined ? r.ARGILA : (r['Argila (%)'] !== undefined ? r['Argila (%)'] : r['Argila(g/kg)']));
+            if (rawArgila !== undefined && rawArgila !== null && rawArgila !== '') {
+                let argNum = parseFloat(String(rawArgila).replace(',', '.'));
+                if (!isNaN(argNum) && argNum > 0) {
+                    if (argNum <= 100) argNum = argNum * 10;
+                    r.Argila = format1Decimal(argNum);
+                }
+            }
+
             return r;
         }
 
+        // BUSCA ESTRITA DA SAFRA SELECIONADA (SEM SOBREPOSIÇÃO DE ANOS ANTERIORES)
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
 
             if (props.safras_historico && typeof props.safras_historico === 'object') {
-                if (selectedSafras && selectedSafras.length && !selectedSafras.includes('all')) {
-                    for (const s of selectedSafras) {
-                        if (props.safras_historico[s] && props.safras_historico[s][depthKey]) return props.safras_historico[s][depthKey];
+                if (selectedSafras && selectedSafras.length) {
+                    // Lê exclusivamente o primeiro ano safra marcado no filtro lateral
+                    const targetSafra = selectedSafras[0];
+                    if (props.safras_historico[targetSafra] && props.safras_historico[targetSafra][depthKey]) {
+                        return props.safras_historico[targetSafra][depthKey];
                     }
                 } else {
                     const availableSafras = Object.keys(props.safras_historico).filter(s => /^\d{4}$/.test(s)).sort().reverse();
-                    for (const s of availableSafras) {
-                        if (props.safras_historico[s] && props.safras_historico[s][depthKey]) return props.safras_historico[s][depthKey];
+                    if (availableSafras.length && props.safras_historico[availableSafras[0]][depthKey]) {
+                        return props.safras_historico[availableSafras[0]][depthKey];
                     }
                 }
             }
@@ -1012,6 +1055,7 @@
             populateTalhaoSelector();
         }
 
+        // PRÉ-SELEÇÃO EXCLUSIVA DA SAFRA MAIS RECENTE
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const container = document.getElementById('container-safra-checkboxes');
@@ -1042,6 +1086,7 @@
                 return;
             }
 
+            // Marca EXCLUSIVAMENTE a primeira safra (a mais recente), e deixa as outras desmarcadas
             container.innerHTML = sortedSafras.map((s, idx) => `
                 <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
                     <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
@@ -1366,6 +1411,7 @@
             const selectedSafras = getSelectedSafras();
             const param = document.getElementById('sel-param').value;
             const mode = document.getElementById('sel-mode').value;
+            const depth = document.getElementById('sel-depth').value;
             const rules = getQGISRules(param);
 
             const buildLayer = (depthKey) => L.geoJSON(currentGeoJSON, {
@@ -1373,7 +1419,10 @@
                 style: f => {
                     const val = format1Decimal(getFeatureDepthData(f, depthKey, selectedSafras)[param]);
                     let color = '#94a3b8';
-                    if (val !== null) { const matched = rules.find(r => val >= r.min && val <= r.max); if (matched) color = matched.color; }
+                    if (val !== null && val !== undefined && !isNaN(val)) { 
+                        const matched = rules.find(r => val >= r.min && val <= r.max); 
+                        if (matched) color = matched.color; 
+                    }
                     return { fillColor: color, fillOpacity: 0.85, color: '#1d4ed8', weight: 1.5 };
                 },
                 onEachFeature: (f, layer) => {
@@ -1389,7 +1438,6 @@
                 geojsonLayerLeft = buildLayer(depthA).addTo(mapLeft);
                 geojsonLayerRight = buildLayer(depthB).addTo(mapRight);
             } else {
-                const depth = document.getElementById('sel-depth').value;
                 geojsonLayerLeft = buildLayer(depth).addTo(mapLeft);
             }
 
@@ -1398,8 +1446,23 @@
                 if (mode === 'sidebyside' && mapRight) mapRight.fitBounds(geojsonLayerLeft.getBounds());
             }
 
+            const hasValidData = currentGeoJSON.features.some(f => {
+                const val = format1Decimal(getFeatureDepthData(f, depth, selectedSafras)[param]);
+                return val !== null && val !== undefined && !isNaN(val);
+            });
+
             legendTitle.innerText = `${param}`;
-            legendItems.innerHTML = rules.map(r => `<div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:${r.color}"></div><span>${r.label}</span></div>`).join('');
+
+            if (!hasValidData) {
+                legendItems.innerHTML = `
+                    <div class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] font-semibold space-y-1">
+                        <span class="font-bold block"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Sem dados para "${param}"</span>
+                        <span>A planilha desta safra não possui valores preenchidos para este parâmetro. Selecione outro parâmetro como: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
+                    </div>
+                `;
+            } else {
+                legendItems.innerHTML = rules.map(r => `<div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:${r.color}"></div><span>${r.label}</span></div>`).join('');
+            }
         }
 
         // =========================================================================
