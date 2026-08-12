@@ -51,9 +51,8 @@
             border: 2px solid #ffffff; border-radius: 50%; display: flex;
             align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); font-size: 14px;
         }
-        /* Transformador de Falso-Cor NDVI em alta definição */
         .ndvi-filter {
-            filter: hue-rotate(85deg) saturate(230%) contrast(125%);
+            filter: hue-rotate(80deg) saturate(220%) contrast(120%);
         }
     </style>
 </head>
@@ -142,7 +141,7 @@
                                 </select>
                             </div>
 
-                            <!-- IMAGENS DE SATÉLITE COM SELETOR DE DATA INTEGRADO -->
+                            <!-- IMAGENS DE SATÉLITE -->
                             <div class="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 space-y-3">
                                 <span class="text-[11px] font-extrabold uppercase text-emerald-400 block"><i class="fa-solid fa-satellite text-xs mr-1"></i>Imagem de Fundo (Satélite)</span>
                                 <div>
@@ -150,33 +149,30 @@
                                     <select id="sel-basemap" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
                                         <option value="esri" selected>Satélite HD Padrão (Esri World)</option>
                                         <option value="google">Satélite Google Hybrid</option>
-                                        <option value="sentinel_rgb">Satélite Sentinel-2 (RGB Cor Real)</option>
-                                        <option value="sentinel_ndvi">Satélite Sentinel-2 (NDVI Biomassa)</option>
+                                        <option value="sentinel_rgb">Satélite Cor Real (Destacar Limites)</option>
+                                        <option value="sentinel_ndvi">Satélite NDVI (Vigor Vegetativo Falso-Cor)</option>
                                     </select>
                                 </div>
+                            </div>
 
-                                <!-- SELETOR DE DATA INTEGRADO -->
-                                <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
-                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
-                                    <input type="date" id="sel-sat-date" value="2026-02-01" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
-                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Busca automática da cena sem nuvens</span>
+                            <!-- FILTRO MULTI-SELEÇÃO DE ANO SAFRA -->
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
+                                    <button onclick="toggleAllSafras()" class="text-[10px] font-bold text-origens-green hover:underline">Todos/Nenhum</button>
+                                </div>
+                                <div id="container-safra-checkboxes" class="max-h-32 overflow-y-auto bg-slate-50 border border-slate-300 rounded-xl p-2 space-y-1 text-xs">
                                 </div>
                             </div>
 
-                            <!-- FILTRO POR ANO SAFRA -->
+                            <!-- FILTRO MULTI-SELEÇÃO DE TALHÃO -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra</label>
-                                <select id="sel-safra" onchange="changeActiveSafra()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
-                                    <option value="all">Todas as Safras</option>
-                                </select>
-                            </div>
-
-                            <!-- FILTRO POR TALHÃO -->
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1"><i class="fa-solid fa-filter text-origens-green mr-1"></i>Filtrar por Talhão</label>
-                                <select id="sel-talhao" onchange="updateGISMap()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-sm text-slate-800">
-                                    <option value="all">Todos os Talhões</option>
-                                </select>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-filter text-origens-green mr-1"></i>Filtrar por Talhão (Múltiplo)</label>
+                                    <button onclick="toggleAllTalhoes()" class="text-[10px] font-bold text-origens-green hover:underline">Todos/Nenhum</button>
+                                </div>
+                                <div id="container-talhao-checkboxes" class="max-h-36 overflow-y-auto bg-slate-50 border border-slate-300 rounded-xl p-2 space-y-1 text-xs">
+                                </div>
                             </div>
 
                             <!-- UPLOAD FERRAMENTA ADMIN -->
@@ -565,15 +561,18 @@
             return r;
         }
 
-        function getFeatureDepthData(feature, depthKey, selectedSafra) {
+        // SUPORTE A FILTRO DE MULTI-SAFRAS
+        function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
 
             const props = feature.properties;
 
             if (props.safras_historico && typeof props.safras_historico === 'object') {
-                if (selectedSafra && selectedSafra !== 'all') {
-                    if (props.safras_historico[selectedSafra] && props.safras_historico[selectedSafra][depthKey]) {
-                        return props.safras_historico[selectedSafra][depthKey];
+                if (selectedSafras && selectedSafras.length && !selectedSafras.includes('all')) {
+                    for (const s of selectedSafras) {
+                        if (props.safras_historico[s] && props.safras_historico[s][depthKey]) {
+                            return props.safras_historico[s][depthKey];
+                        }
                     }
                 } else {
                     const availableSafras = Object.keys(props.safras_historico).filter(s => /^\d{4}$/.test(s)).sort().reverse();
@@ -583,20 +582,6 @@
                         }
                     }
                 }
-            }
-
-            if (selectedSafra && selectedSafra !== 'all') {
-                const safraKey = depthKey + '_' + selectedSafra;
-                if (props[safraKey]) return props[safraKey];
-
-                const defaultData = props[depthKey];
-                if (defaultData) {
-                    const rowSafra = extractSafra(defaultData);
-                    if (!rowSafra || rowSafra === selectedSafra) {
-                        return defaultData;
-                    }
-                }
-                return {};
             }
 
             return props[depthKey] || {};
@@ -886,20 +871,17 @@
             items.forEach(chk => chk.checked = masterChk.checked);
         }
 
+        // POPULAR SELETOR MULTI-CHECKBOX DE SAFRAS
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
 
             const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
-            const safraSelect = document.getElementById('sel-safra');
-            if (!safraSelect) return;
-            
-            const currentSelectedSafra = safraSelect.value;
-            safraSelect.innerHTML = '<option value="all">Todas as Safras</option>';
+            const container = document.getElementById('container-safra-checkboxes');
+            if (!container) return;
 
+            const safrasSet = new Set();
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
-                const safrasSet = new Set();
-
                 currentGeoJSON.features.forEach(f => {
                     if (f.properties) {
                         if (f.properties.safras_historico && typeof f.properties.safras_historico === 'object') {
@@ -907,67 +889,87 @@
                                 if (/^\d{4}$/.test(s)) safrasSet.add(s);
                             });
                         }
-
                         Object.keys(f.properties).forEach(pKey => {
-                            const valObj = f.properties[pKey];
-                            const detectedSafra = extractSafra(valObj);
-                            if (detectedSafra && /^\d{4}$/.test(detectedSafra)) {
-                                safrasSet.add(detectedSafra);
-                            }
+                            const detectedSafra = extractSafra(f.properties[pKey]);
+                            if (detectedSafra && /^\d{4}$/.test(detectedSafra)) safrasSet.add(detectedSafra);
                         });
                     }
                 });
-
-                const sortedSafras = Array.from(safrasSet).sort().reverse();
-                sortedSafras.forEach(s => {
-                    safraSelect.innerHTML += `<option value="${s}">Safra ${s}</option>`;
-                });
-
-                if (safrasSet.has(currentSelectedSafra)) {
-                    safraSelect.value = currentSelectedSafra;
-                }
             }
+
+            const sortedSafras = Array.from(safrasSet).sort().reverse();
+            if (!sortedSafras.length) {
+                container.innerHTML = '<span class="text-slate-400 italic">Sem safras registradas</span>';
+                return;
+            }
+
+            container.innerHTML = sortedSafras.map(s => `
+                <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 hover:text-slate-900">
+                    <input type="checkbox" name="chk-safra-item" value="${s}" checked onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
+                    <span>Safra ${s}</span>
+                </label>
+            `).join('');
         }
 
+        function toggleAllSafras() {
+            const items = document.querySelectorAll('.chk-safra-item');
+            if (!items.length) return;
+            const anyUnchecked = Array.from(items).some(i => !i.checked);
+            items.forEach(i => i.checked = anyUnchecked);
+            updateGISMap();
+        }
+
+        function getSelectedSafras() {
+            const checked = document.querySelectorAll('.chk-safra-item:checked');
+            return Array.from(checked).map(i => i.value);
+        }
+
+        // POPULAR SELETOR MULTI-CHECKBOX DE TALHÕES
         function populateTalhaoSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             if (!selectedFarmKey || !farmsDatabase[selectedFarmKey]) return;
 
             const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
-            const talhaoSelect = document.getElementById('sel-talhao');
-            if (!talhaoSelect) return;
+            const container = document.getElementById('container-talhao-checkboxes');
+            if (!container) return;
 
-            const currentSelectedTalhao = talhaoSelect.value;
-            talhaoSelect.innerHTML = '<option value="all">Todos os Talhões</option>';
-
+            const talhoesSet = new Set();
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
-                const talhoesSet = new Set();
-
                 currentGeoJSON.features.forEach(f => {
                     if (f.properties && f.properties.Talhao) {
                         talhoesSet.add(String(f.properties.Talhao));
                     }
                 });
-
-                Array.from(talhoesSet).sort().forEach(t => {
-                    talhaoSelect.innerHTML += `<option value="${t}">Talhão ${t}</option>`;
-                });
-
-                if (Array.from(talhoesSet).includes(currentSelectedTalhao)) {
-                    talhaoSelect.value = currentSelectedTalhao;
-                } else {
-                    talhaoSelect.value = 'all';
-                }
             }
+
+            const sortedTalhoes = Array.from(talhoesSet).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+            if (!sortedTalhoes.length) {
+                container.innerHTML = '<span class="text-slate-400 italic">Sem talhões registrados</span>';
+                return;
+            }
+
+            container.innerHTML = sortedTalhoes.map(t => `
+                <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 hover:text-slate-900">
+                    <input type="checkbox" name="chk-talhao-item" value="${t}" checked onchange="updateGISMap()" class="chk-talhao-item h-3.5 w-3.5 text-origens-green rounded">
+                    <span>Talhão ${t}</span>
+                </label>
+            `).join('');
+        }
+
+        function toggleAllTalhoes() {
+            const items = document.querySelectorAll('.chk-talhao-item');
+            if (!items.length) return;
+            const anyUnchecked = Array.from(items).some(i => !i.checked);
+            items.forEach(i => i.checked = anyUnchecked);
+            updateGISMap();
+        }
+
+        function getSelectedTalhoes() {
+            const checked = document.querySelectorAll('.chk-talhao-item:checked');
+            return Array.from(checked).map(i => i.value);
         }
 
         function changeActiveFarm() { 
-            const talhaoSelect = document.getElementById('sel-talhao');
-            if (talhaoSelect) talhaoSelect.value = 'all';
-
-            const safraSelect = document.getElementById('sel-safra');
-            if (safraSelect) safraSelect.value = 'all';
-            
             populateSafraSelector();
             populateTalhaoSelector();
             updateGISMap(); 
@@ -1172,22 +1174,10 @@
             }
         }
 
-        // CARREGAMENTO DE CAMADAS DE SATÉLITE COM SELETOR DE DATA EXPLICITAMENTE ATIVO E WMS NASA
         function changeBasemap() {
             if (!mapLeft || !mapRight) return;
 
             const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
-            const satDateBox = document.getElementById('box-sat-date');
-            const satDateInput = document.getElementById('sel-sat-date');
-
-            // Exibir a caixa de calendário sempre para RGB e NDVI
-            if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
-                if (satDateBox) satDateBox.classList.remove('hidden');
-            } else {
-                if (satDateBox) satDateBox.classList.add('hidden');
-            }
-
-            const dateVal = (satDateInput && satDateInput.value) ? satDateInput.value : '2026-02-01';
 
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
@@ -1200,66 +1190,20 @@
             const esriUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
             const googleUrl = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 
-            const attachAntiBlankFallback = (layerLeft, layerRight) => {
-                const applyFallback = (e) => {
-                    if (e.tile) {
-                        e.tile.src = esriUrl.replace('{z}', e.coords.z).replace('{y}', e.coords.y).replace('{x}', e.coords.x);
-                    }
-                };
-                layerLeft.on('tileerror', applyFallback);
-                layerRight.on('tileerror', applyFallback);
-            };
-
             if (selectedType === 'google') {
                 tileLayerLeft = L.tileLayer(googleUrl, { attribution: 'Google Satellite', maxZoom: 18 }).addTo(mapLeft);
                 tileLayerRight = L.tileLayer(googleUrl, { attribution: 'Google Satellite', maxZoom: 18 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_rgb') {
-                // NASA GIBS WMS Sentinel-2 L2A TrueColor com parâmetro TIME estrito
-                tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
-                    format: 'image/png',
-                    transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
-                    maxZoom: 18
-                }).addTo(mapLeft);
-
-                tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
-                    format: 'image/png',
-                    transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 RGB',
-                    maxZoom: 18
-                }).addTo(mapRight);
-
-                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
+                tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real HD', maxZoom: 18 }).addTo(mapLeft);
+                tileLayerRight = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real HD', maxZoom: 18 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // NASA GIBS WMS Sentinel-2 L2A TrueColor com Processamento Falso-Cor de Vigor Vegetativo
-                tileLayerLeft = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
-                    format: 'image/png',
-                    transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
-                    maxZoom: 18
-                }).addTo(mapLeft);
-
-                tileLayerRight = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
-                    layers: 'Sentinel_2_L2A_TrueColor',
-                    format: 'image/png',
-                    transparent: true,
-                    time: dateVal,
-                    attribution: 'NASA GIBS / Copernicus &copy; Sentinel-2 NDVI',
-                    maxZoom: 18
-                }).addTo(mapRight);
-
+                tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapLeft);
+                tileLayerRight = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapRight);
+                
                 if (mapLeftEl) mapLeftEl.classList.add('ndvi-filter');
                 if (mapRightEl) mapRightEl.classList.add('ndvi-filter');
-
-                attachAntiBlankFallback(tileLayerLeft, tileLayerRight);
 
             } else {
                 tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Origens &copy; Esri', maxZoom: 18 }).addTo(mapLeft);
@@ -1454,23 +1398,25 @@
             }
         }
 
+        // CRIAÇÃO DA CAMADA GEOJSON COM FILTRO DE MULTI-TALHÕES E MULTI-SAFRAS
         function createGeoJsonLayer(currentGeoJSON, depthKey, param, rules) {
             const showBoundary = document.getElementById('chk-boundary').checked;
             const showLabels = document.getElementById('chk-labels').checked;
             const showValues = document.getElementById('chk-values').checked;
-            const selectedTalhao = document.getElementById('sel-talhao').value;
-            const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
             
+            const selectedTalhoes = getSelectedTalhoes();
+            const selectedSafras = getSelectedSafras();
+
             const selectedBasemap = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
             const isSatLayerActive = (selectedBasemap === 'sentinel_rgb' || selectedBasemap === 'sentinel_ndvi');
 
             return L.geoJSON(currentGeoJSON, {
                 filter: function(feature) {
-                    if (selectedTalhao === 'all') return true;
-                    return feature.properties && String(feature.properties.Talhao) === selectedTalhao;
+                    if (!selectedTalhoes.length) return false;
+                    return feature.properties && selectedTalhoes.includes(String(feature.properties.Talhao));
                 },
                 style: function(feature) {
-                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafra);
+                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafras);
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
 
@@ -1489,7 +1435,7 @@
                 },
                 onEachFeature: function(feature, layer) {
                     const props = feature.properties || {};
-                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafra);
+                    const depthData = getFeatureDepthData(feature, depthKey, selectedSafras);
                     const rawVal = depthData[param];
                     const val = format1Decimal(rawVal);
                     const displayVal = (val !== null && val !== undefined) ? val : 'N/A';
@@ -1614,8 +1560,9 @@
             const currentGeoJSON = farmInfo.geojson;
             const showLabels = document.getElementById('chk-labels').checked;
             const showValues = document.getElementById('chk-values').checked;
-            const selectedTalhao = document.getElementById('sel-talhao').value;
-            const selectedSafra = document.getElementById('sel-safra') ? document.getElementById('sel-safra').value : 'all';
+            
+            const selectedTalhoes = getSelectedTalhoes();
+            const selectedSafras = getSelectedSafras();
 
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1641,10 +1588,7 @@
             ctx.textAlign = "left";
 
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
-                let filteredFeatures = currentGeoJSON.features;
-                if (selectedTalhao !== 'all') {
-                    filteredFeatures = filteredFeatures.filter(f => f.properties && String(f.properties.Talhao) === selectedTalhao);
-                }
+                let filteredFeatures = currentGeoJSON.features.filter(f => f.properties && selectedTalhoes.includes(String(f.properties.Talhao)));
 
                 let allPts = [];
                 filteredFeatures.forEach(f => {
@@ -1678,7 +1622,7 @@
                     const offsetY = mapY + (mapH - spanY * scale) / 2;
 
                     filteredFeatures.forEach(f => {
-                        const depthData = getFeatureDepthData(f, depthConfig.key, selectedSafra);
+                        const depthData = getFeatureDepthData(f, depthConfig.key, selectedSafras);
                         const rawVal = depthData[param];
                         const val = format1Decimal(rawVal);
 
