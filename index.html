@@ -355,6 +355,23 @@
                                 </button>
                             </div>
 
+                            <!-- CONTROLES DE RÓTULO DO MAPA DE TAXA VARIÁVEL (ELIMINA POLUIÇÃO VISUAL) -->
+                            <div class="space-y-2 pt-2 border-t border-amber-200">
+                                <span class="text-xs font-bold text-amber-800 uppercase tracking-wider block mb-1">Camadas & Rótulos no Mapa/PDF</span>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="vrate-chk-boundary" checked onchange="vrateUpdateMap()" class="form-checkbox h-4 w-4 text-amber-600 rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Contorno do Perímetro</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="vrate-chk-labels" onchange="vrateUpdateMap()" class="form-checkbox h-4 w-4 text-amber-600 rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Rótulos das Subdivisões</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" id="vrate-chk-values" checked onchange="vrateUpdateMap()" class="form-checkbox h-4 w-4 text-amber-600 rounded">
+                                    <span class="text-sm font-semibold text-slate-700">Valores das Doses</span>
+                                </label>
+                            </div>
+
                             <!-- RESUMO DA APLICAÇÃO -->
                             <div id="vrate-summary-box" class="bg-slate-900 text-white p-4 rounded-2xl space-y-2 hidden">
                                 <span class="text-xs font-black text-amber-400 uppercase block border-b border-slate-800 pb-1">Resumo do Insumo</span>
@@ -514,6 +531,7 @@
         </div>
     </div>
 
+    <!-- CANVAS OCULTO PARA EXPORTAÇÃO DO PDF -->
     <canvas id="pdf-render-canvas" width="1600" height="1200" style="display:none;"></canvas>
 
     <script>
@@ -538,6 +556,8 @@
         let farmsDatabase = {}, usersDatabase = [];
         let splitPosition = 0.5, isSyncing = false;
         let vrateProcessedData = [];
+        let vrateDoseMap = {};
+        let vrateUniqueDoses = [];
 
         function format1Decimal(val) {
             if (val === null || val === undefined || val === '') return null;
@@ -634,7 +654,6 @@
             return r;
         }
 
-        // BUSCA ROBUSTA DE DADOS NA SAFRA SELECIONADA
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
@@ -1393,7 +1412,6 @@
             }
         }
 
-        // RENDERIZAÇÃO DA CAMADA COM RÓTULOS E VALORES CENTRAIS PERMANENTES
         function updateGISMap() {
             if (!mapLeft) return;
             const selectedFarmKey = document.getElementById('sel-farm').value;
@@ -1447,7 +1465,6 @@
 
                     layer.bindPopup(`<b>${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b><br>${param}: <b>${displayVal}</b>`);
 
-                    // Montagem dos rótulos permanentes sobre os polígonos
                     let labelText = "";
                     if (showLabels && showValues) {
                         labelText = `${subName}: ${displayVal}`;
@@ -1501,7 +1518,7 @@
         }
 
         // =========================================================================
-        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL
+        // LÓGICA DO MÓDULO DE TAXA VARIÁVEL (EXIBIÇÃO COM DOSES EXATAS)
         // =========================================================================
         function initVRateMap() {
             if (!vrateMap) {
@@ -1528,11 +1545,86 @@
             if (vrateGeojsonLayer.getBounds().isValid()) vrateMap.fitBounds(vrateGeojsonLayer.getBounds());
         }
 
+        function vrateUpdateMap() {
+            if (!vrateMap || !vrateProcessedData.length) return;
+            const farmKey = document.getElementById('vrate-sel-farm').value;
+            const farmObj = farmsDatabase[farmKey];
+            if (!farmObj || !farmObj.geojson) return;
+
+            const product = document.getElementById('vrate-product').value;
+            const unit = document.getElementById('vrate-unit').value;
+            const unitStr = unit === 'kg_ha' ? 'kg/ha' : 't/ha';
+
+            const showBoundary = document.getElementById('vrate-chk-boundary') ? document.getElementById('vrate-chk-boundary').checked : true;
+            const showLabels = document.getElementById('vrate-chk-labels') ? document.getElementById('vrate-chk-labels').checked : false;
+            const showValues = document.getElementById('vrate-chk-values') ? document.getElementById('vrate-chk-values').checked : true;
+
+            const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+            let doseColorMap = {};
+            vrateUniqueDoses.forEach((d, i) => {
+                doseColorMap[d] = palette[i % palette.length];
+            });
+
+            if (vrateGeojsonLayer) vrateMap.removeLayer(vrateGeojsonLayer);
+
+            vrateGeojsonLayer = L.geoJSON(farmObj.geojson, {
+                style: f => {
+                    let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
+                    let subClean = cleanString(rawSub);
+                    let dose = vrateDoseMap[subClean] !== undefined ? vrateDoseMap[subClean] : 0;
+
+                    let color = '#f1f5f9';
+                    if (dose > 0 && doseColorMap[dose]) {
+                        color = doseColorMap[dose];
+                    } else if (dose >= 200) color = '#15803d';
+                    else if (dose >= 150) color = '#22c55e';
+                    else if (dose >= 100) color = '#facc15';
+                    else if (dose > 0) color = '#f97316';
+
+                    return { 
+                        fillColor: color, 
+                        fillOpacity: dose > 0 ? 0.85 : 0.2, 
+                        color: showBoundary ? '#1e3a8a' : 'transparent', 
+                        weight: showBoundary ? 1.5 : 0 
+                    };
+                },
+                onEachFeature: (f, layer) => {
+                    let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
+                    let subClean = cleanString(rawSub);
+                    let dose = vrateDoseMap[subClean] !== undefined ? vrateDoseMap[subClean] : 0;
+                    let subName = f.properties.Subs || f.properties.Subdivisao || 'Subdivisão';
+
+                    layer.bindPopup(`
+                        <div class="p-1">
+                            <b class="text-sm text-slate-900 block border-b pb-1">${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b>
+                            <span class="text-xs text-slate-600 block mt-1">Área: <b>${format1Decimal(f.properties.Area)} ha</b></span>
+                            <span class="text-xs text-slate-800 block">Dose ${product}: <b class="text-amber-600 font-extrabold">${dose} ${unitStr}</b></span>
+                            <span class="text-xs text-slate-800 block">Total Insumo: <b class="text-emerald-600 font-extrabold">${format1Decimal(dose * parseFloat(f.properties.Area || 0))} ${unit === 'kg_ha' ? 'kg' : 't'}</b></span>
+                        </div>
+                    `);
+
+                    let textLabel = "";
+                    if (showLabels && showValues) textLabel = `${subName}: ${dose} ${unitStr}`;
+                    else if (showLabels) textLabel = `${subName}`;
+                    else if (showValues && dose > 0) textLabel = `${dose} ${unitStr}`;
+
+                    if (textLabel !== "") {
+                        layer.bindTooltip(textLabel, { 
+                            permanent: true, 
+                            direction: 'center', 
+                            className: 'bg-slate-900/80 text-white font-bold text-[10px] px-1 py-0.5 rounded shadow text-center border-0' 
+                        });
+                    }
+                }
+            }).addTo(vrateMap);
+        }
+
         function processVRateExcel() {
             const farmKey = document.getElementById('vrate-sel-farm').value;
             const fileInput = document.getElementById('vrate-excel-file');
             const product = document.getElementById('vrate-product').value;
             const unit = document.getElementById('vrate-unit').value;
+            const unitStr = unit === 'kg_ha' ? 'kg/ha' : 't/ha';
 
             if (!fileInput.files.length) { alert('Por favor, selecione a planilha Excel com as recomendações!'); return; }
 
@@ -1545,7 +1637,7 @@
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet);
 
-                let doseMap = {};
+                vrateDoseMap = {};
                 rows.forEach(r => {
                     let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.Talhao || r.TALHAO || r.Gleba;
                     if (rawSub) {
@@ -1555,7 +1647,7 @@
                         if (rawDose !== undefined && rawDose !== null && rawDose !== '') {
                             let doseVal = parseFloat(String(rawDose).replace(',', '.'));
                             if (!isNaN(doseVal) && doseVal > 0) {
-                                doseMap[subKey] = doseVal;
+                                vrateDoseMap[subKey] = doseVal;
                             }
                         }
                     }
@@ -1564,86 +1656,78 @@
                 let totalArea = 0, totalProduct = 0, matchedCount = 0;
                 vrateProcessedData = [];
 
-                if (vrateGeojsonLayer) vrateMap.removeLayer(vrateGeojsonLayer);
+                farmObj.geojson.features.forEach(f => {
+                    let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
+                    let subClean = cleanString(rawSub);
+                    let dose = vrateDoseMap[subClean] !== undefined ? vrateDoseMap[subClean] : 0;
+                    let area = parseFloat(f.properties.Area || f.properties.AREA || 0);
 
-                vrateGeojsonLayer = L.geoJSON(farmObj.geojson, {
-                    style: f => {
-                        let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
-                        let subClean = cleanString(rawSub);
-                        let dose = doseMap[subClean] !== undefined ? doseMap[subClean] : 0;
-                        let area = parseFloat(f.properties.Area || f.properties.AREA || 0);
-
-                        if (dose > 0) {
-                            totalArea += area;
-                            totalProduct += (dose * area);
-                            matchedCount++;
-                        }
-
-                        f.properties.Rate = dose;
-                        f.properties.DOSE = dose;
-                        f.properties.Produto = product;
-
-                        vrateProcessedData.push({ 
-                            talhao: f.properties.Talhao || 'N/A', 
-                            subs: f.properties.Subs || f.properties.Subdivisao || 'Gleba', 
-                            area: area, 
-                            dose: dose, 
-                            total: (dose * area) 
-                        });
-
-                        let color = '#f1f5f9';
-                        if (dose >= 200) color = '#15803d';
-                        else if (dose >= 150) color = '#22c55e';
-                        else if (dose >= 100) color = '#facc15';
-                        else if (dose > 0) color = '#f97316';
-
-                        return { fillColor: color, fillOpacity: dose > 0 ? 0.85 : 0.2, color: '#1e3a8a', weight: 1.5 };
-                    },
-                    onEachFeature: (f, layer) => {
-                        let rawSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Gleba || f.properties.Talhao;
-                        let subClean = cleanString(rawSub);
-                        let dose = doseMap[subClean] !== undefined ? doseMap[subClean] : 0;
-                        let subName = f.properties.Subs || f.properties.Subdivisao || 'Subdivisão';
-
-                        layer.bindPopup(`
-                            <div class="p-1">
-                                <b class="text-sm text-slate-900 block border-b pb-1">${subName} (Talhão ${f.properties.Talhao || 'N/A'})</b>
-                                <span class="text-xs text-slate-600 block mt-1">Área: <b>${format1Decimal(f.properties.Area)} ha</b></span>
-                                <span class="text-xs text-slate-800 block">Dose ${product}: <b class="text-amber-600 font-extrabold">${dose} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}</b></span>
-                                <span class="text-xs text-slate-800 block">Total Insumo: <b class="text-emerald-600 font-extrabold">${format1Decimal(dose * parseFloat(f.properties.Area || 0))} ${unit === 'kg_ha' ? 'kg' : 't'}</b></span>
-                            </div>
-                        `);
+                    if (dose > 0) {
+                        totalArea += area;
+                        totalProduct += (dose * area);
+                        matchedCount++;
                     }
-                }).addTo(vrateMap);
+
+                    f.properties.Rate = dose;
+                    f.properties.DOSE = dose;
+                    f.properties.Produto = product;
+
+                    vrateProcessedData.push({ 
+                        talhao: f.properties.Talhao || 'N/A', 
+                        subs: f.properties.Subs || f.properties.Subdivisao || 'Gleba', 
+                        area: area, 
+                        dose: dose, 
+                        total: (dose * area) 
+                    });
+                });
+
+                // Identificar Doses Exatas Únicas Presentes no Arquivo para a Legenda Fixo-Pontual
+                vrateUniqueDoses = Array.from(new Set(vrateProcessedData.map(d => d.dose))).filter(d => d > 0).sort((a,b) => b - a);
+
+                vrateUpdateMap();
 
                 document.getElementById('vrate-summary-box').classList.remove('hidden');
-                document.getElementById('vrate-sum-prod').innerText = `${product} (${unit === 'kg_ha' ? 'kg/ha' : 't/ha'})`;
+                document.getElementById('vrate-sum-prod').innerText = `${product} (${unitStr})`;
                 document.getElementById('vrate-sum-area').innerText = `${format1Decimal(totalArea)} ha`;
                 
                 let avgDose = totalArea > 0 ? (totalProduct / totalArea) : 0;
-                document.getElementById('vrate-sum-avg').innerText = `${format1Decimal(avgDose)} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`;
+                document.getElementById('vrate-sum-avg').innerText = `${format1Decimal(avgDose)} ${unitStr}`;
                 
                 let finalTotalStr = unit === 'kg_ha' ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` : `${format1Decimal(totalProduct)} Toneladas`;
                 document.getElementById('vrate-sum-total').innerText = finalTotalStr;
 
-                document.getElementById('vrate-legend-items').innerHTML = `
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#15803d"></div><span>Dose Alta (>= 200 kg/ha)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#22c55e"></div><span>Dose Média-Alta (150 - 200 kg/ha)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#facc15"></div><span>Dose Média (100 - 150 kg/ha)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#f97316"></div><span>Dose Baixa (1 - 100 kg/ha)</span></div>
-                    <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#f1f5f9; border: 1px solid #cbd5e1;"></div><span>Sem Aplicação (0 kg/ha)</span></div>
+                // Montar Legenda com Doses Exatas Fixas
+                const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+                let legendHTML = vrateUniqueDoses.map((d, i) => `
+                    <div class="flex items-center gap-2">
+                        <div class="w-3.5 h-3.5 rounded shadow-sm border border-slate-300" style="background:${palette[i % palette.length]}"></div>
+                        <span><b>${d}</b> ${unitStr}</span>
+                    </div>
+                `).join('');
+
+                legendHTML += `
+                    <div class="flex items-center gap-2 border-t pt-1 mt-1">
+                        <div class="w-3.5 h-3.5 rounded border border-slate-300" style="background:#f1f5f9"></div>
+                        <span>Sem Aplicação (0 ${unitStr})</span>
+                    </div>
                 `;
+
+                document.getElementById('vrate-legend-items').innerHTML = legendHTML;
 
                 alert(`Prescrição processada com sucesso!\nForam encontradas e vinculadas ${matchedCount} áreas com recomendação de ${product}.`);
             };
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
-        // DESENHAR CANVAS DO LAUDO DA TAXA VARIÁVEL (PDF)
+        // DESENHAR CANVAS DO LAUDO DA TAXA VARIÁVEL (PDF SEM POLUIÇÃO VISUAL E LEGENDA DE DOSES EXATAS)
         function drawVRateCanvas(farmInfo, product, unit) {
             const canvas = document.getElementById('pdf-render-canvas');
             const ctx = canvas.getContext('2d');
             const currentGeoJSON = farmInfo.geojson;
+            const unitStr = unit === 'kg_ha' ? 'kg/ha' : 't/ha';
+
+            const showLabels = document.getElementById('vrate-chk-labels') ? document.getElementById('vrate-chk-labels').checked : false;
+            const showValues = document.getElementById('vrate-chk-values') ? document.getElementById('vrate-chk-values').checked : true;
 
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1664,13 +1748,19 @@
 
             ctx.fillStyle = "#D97706";
             ctx.font = "bold 18px Helvetica, Arial";
-            ctx.fillText(`PROPRIEDADE: ${farmInfo.name.toUpperCase()} | INSUMO: ${product.toUpperCase()} (${unit === 'kg_ha' ? 'kg/ha' : 't/ha'})`, 800, 95);
+            ctx.fillText(`PROPRIEDADE: ${farmInfo.name.toUpperCase()} | INSUMO: ${product.toUpperCase()} (${unitStr})`, 800, 95);
 
             ctx.textAlign = "left";
 
             let doseMap = {};
             vrateProcessedData.forEach(item => {
                 if (item.subs) doseMap[cleanString(item.subs)] = item.dose;
+            });
+
+            const palette = ['#15803d', '#22c55e', '#16a34a', '#facc15', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+            let doseColorMap = {};
+            vrateUniqueDoses.forEach((d, i) => {
+                doseColorMap[d] = palette[i % palette.length];
             });
 
             let totalArea = 0, totalProduct = 0;
@@ -1719,7 +1809,9 @@
                         }
 
                         let fillColor = '#f1f5f9';
-                        if (dose >= 200) fillColor = '#15803d';
+                        if (dose > 0 && doseColorMap[dose]) {
+                            fillColor = doseColorMap[dose];
+                        } else if (dose >= 200) fillColor = '#15803d';
                         else if (dose >= 150) fillColor = '#22c55e';
                         else if (dose >= 100) fillColor = '#facc15';
                         else if (dose > 0) fillColor = '#f97316';
@@ -1758,11 +1850,18 @@
                             const cy = totalPy / ptCount;
                             const subName = f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao || 'Gleba';
 
-                            ctx.fillStyle = "#000000";
-                            ctx.font = "bold 9px Helvetica, Arial";
-                            ctx.textAlign = "center";
-                            ctx.fillText(`${subName}: ${dose} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, cx, cy);
-                            ctx.textAlign = "left";
+                            let textLabel = "";
+                            if (showLabels && showValues) textLabel = `${subName}: ${dose} ${unitStr}`;
+                            else if (showLabels) textLabel = `${subName}`;
+                            else if (showValues) textLabel = `${dose} ${unitStr}`;
+
+                            if (textLabel !== "") {
+                                ctx.fillStyle = "#000000";
+                                ctx.font = "bold 9px Helvetica, Arial";
+                                ctx.textAlign = "center";
+                                ctx.fillText(textLabel, cx, cy);
+                                ctx.textAlign = "left";
+                            }
                         }
                     });
                 }
@@ -1779,17 +1878,9 @@
             ctx.font = "bold 20px Helvetica, Arial";
             ctx.fillText("LEGENDA DE APLICAÇÃO", legX + 15, legY + 35);
 
-            const vrateRules = [
-                { color: '#15803d', label: 'Dose Alta (>= 200)' },
-                { color: '#22c55e', label: 'Dose Média-Alta (150 - 200)' },
-                { color: '#facc15', label: 'Dose Média (100 - 150)' },
-                { color: '#f97316', label: 'Dose Baixa (1 - 100)' },
-                { color: '#f1f5f9', label: 'Sem Aplicação (0)' }
-            ];
-
             let currY = legY + 70;
-            vrateRules.forEach(r => {
-                ctx.fillStyle = r.color;
+            vrateUniqueDoses.forEach((d, i) => {
+                ctx.fillStyle = palette[i % palette.length];
                 ctx.fillRect(legX + 15, currY - 16, 22, 22);
                 ctx.strokeStyle = "#64748B";
                 ctx.lineWidth = 1;
@@ -1797,11 +1888,23 @@
 
                 ctx.fillStyle = "#334155";
                 ctx.font = "bold 14px Helvetica, Arial";
-                ctx.fillText(`${r.label} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, legX + 48, currY);
+                ctx.fillText(`${d} ${unitStr}`, legX + 48, currY);
                 currY += 38;
             });
 
-            currY += 20;
+            // Opção Sem Aplicação
+            ctx.fillStyle = "#f1f5f9";
+            ctx.fillRect(legX + 15, currY - 16, 22, 22);
+            ctx.strokeStyle = "#64748B";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(legX + 15, currY - 16, 22, 22);
+
+            ctx.fillStyle = "#334155";
+            ctx.font = "bold 14px Helvetica, Arial";
+            ctx.fillText(`Sem Aplicação (0 ${unitStr})`, legX + 48, currY);
+            currY += 40;
+
+            // Quadro do Resumo Executivo
             ctx.fillStyle = "#0F172A";
             ctx.fillRect(legX + 15, currY, 340, 220);
             
@@ -1815,7 +1918,7 @@
             ctx.fillText(`Área Total: ${format1Decimal(totalArea)} ha`, legX + 30, currY + 100);
 
             let avgDose = totalArea > 0 ? (totalProduct / totalArea) : 0;
-            ctx.fillText(`Dose Média: ${format1Decimal(avgDose)} ${unit === 'kg_ha' ? 'kg/ha' : 't/ha'}`, legX + 30, currY + 135);
+            ctx.fillText(`Dose Média: ${format1Decimal(avgDose)} ${unitStr}`, legX + 30, currY + 135);
 
             let finalTotalStr = unit === 'kg_ha' 
                 ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` 
