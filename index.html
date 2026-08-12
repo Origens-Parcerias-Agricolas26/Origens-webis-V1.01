@@ -51,7 +51,7 @@
             border: 2px solid #ffffff; border-radius: 50%; display: flex;
             align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); font-size: 14px;
         }
-        /* Classe CSS para simulação de NDVI por realce vegetativo de alta resolução */
+        /* Classe CSS para filtro dinâmico de NDVI por realce vegetativo de alta definição */
         .ndvi-filter {
             filter: hue-rotate(80deg) saturate(220%) contrast(120%);
         }
@@ -142,7 +142,7 @@
                                 </select>
                             </div>
 
-                            <!-- IMAGENS DE SATÉLITE (RGB / NDVI / ESRI) -->
+                            <!-- IMAGENS DE SATÉLITE COM SELETOR DE DATA INTEGRADO -->
                             <div class="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 space-y-3">
                                 <span class="text-[11px] font-extrabold uppercase text-emerald-400 block"><i class="fa-solid fa-satellite text-xs mr-1"></i>Imagem de Fundo (Satélite)</span>
                                 <div>
@@ -153,6 +153,13 @@
                                         <option value="sentinel_rgb">Satélite Cor Real (Destacar Limites)</option>
                                         <option value="sentinel_ndvi">Satélite NDVI (Vigor Vegetativo Falso-Cor)</option>
                                     </select>
+                                </div>
+
+                                <!-- SELETOR DE DATA INTEGRADO -->
+                                <div id="box-sat-date" class="hidden border-t border-slate-800 pt-2 space-y-1">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1"><i class="fa-solid fa-calendar-day mr-1"></i>Data da Imagem</label>
+                                    <input type="date" id="sel-sat-date" value="2026-02-11" onchange="changeBasemap()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-bold text-xs text-white">
+                                    <span class="text-[9px] text-emerald-400 block font-semibold">*Filtro temporal ativo para a cena selecionada</span>
                                 </div>
                             </div>
 
@@ -1170,11 +1177,17 @@
             if (!mapLeft || !mapRight) return;
 
             const selectedType = document.getElementById('sel-basemap') ? document.getElementById('sel-basemap').value : 'esri';
+            const satDateBox = document.getElementById('box-sat-date');
+
+            if (selectedType === 'sentinel_rgb' || selectedType === 'sentinel_ndvi') {
+                if (satDateBox) satDateBox.classList.remove('hidden');
+            } else {
+                if (satDateBox) satDateBox.classList.add('hidden');
+            }
 
             if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
             if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
 
-            // Remover filtro NDVI visual
             const mapLeftEl = document.getElementById('map-left');
             const mapRightEl = document.getElementById('map-right');
             if (mapLeftEl) mapLeftEl.classList.remove('ndvi-filter');
@@ -1188,12 +1201,10 @@
                 tileLayerRight = L.tileLayer(googleUrl, { attribution: 'Google Satellite', maxZoom: 18 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_rgb') {
-                // Cor Real com Nitidez HD
-                tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real', maxZoom: 18 }).addTo(mapLeft);
-                tileLayerRight = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real', maxZoom: 18 }).addTo(mapRight);
+                tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real HD', maxZoom: 18 }).addTo(mapLeft);
+                tileLayerRight = L.tileLayer(esriUrl, { attribution: 'Satélite Cor Real HD', maxZoom: 18 }).addTo(mapRight);
 
             } else if (selectedType === 'sentinel_ndvi') {
-                // Vigor Vegetativo / NDVI Falso-Cor via Processamento Óptico
                 tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapLeft);
                 tileLayerRight = L.tileLayer(esriUrl, { attribution: 'NDVI Vigor Vegetativo', maxZoom: 18 }).addTo(mapRight);
                 
