@@ -106,11 +106,13 @@
                         <span id="user-display-role" class="inline-block mt-1 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-slate-700 text-slate-300">Modo Leitura</span>
                     </div>
 
-                    <!-- MÓDULOS DA NAVEGAÇÃO LATERAL -->
+                    <!-- BARRA LATERAL COM BOTÕES DOS MÓDULOS -->
                     <nav class="space-y-2 font-medium">
                         <button onclick="switchTab('maps')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800 text-white" id="tab-maps">
-                            <i class="fa-solid fa-layer-group text-origens-green"></i><span>Fertilidade do Solo</span>
+                            <i class="fa-solid fa-layer-group text-origens-green"></i><span>Visualizador GIS</span>
                         </button>
+
+                        <!-- NOVO BOTÃO DE TAXA VARIÁVEL -->
                         <button onclick="switchTab('vrate')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-vrate">
                             <i class="fa-solid fa-tractor text-amber-500"></i><span>Taxa Variável & Prescrição</span>
                         </button>
@@ -135,7 +137,7 @@
                 <div id="content-maps" class="h-full flex gap-6">
                     <div class="w-80 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between overflow-y-auto">
                         <div class="space-y-5">
-                            <h3 class="text-sm font-extrabold text-slate-900 uppercase border-b pb-2"><i class="fa-solid fa-sliders mr-2"></i>Controle de Solo</h3>
+                            <h3 class="text-sm font-extrabold text-slate-900 uppercase border-b pb-2"><i class="fa-solid fa-sliders mr-2"></i>Controle do WebGIS</h3>
                             
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fazenda Selecionada</label>
@@ -272,7 +274,7 @@
                     </div>
                 </div>
 
-                <!-- MÓDULO 2: TAXA VARIÁVEL & ADUBAÇÃO (NOVO) -->
+                <!-- MÓDULO 2: TAXA VARIÁVEL & ADUBAÇÃO -->
                 <div id="content-vrate" class="hidden h-full flex gap-6">
                     <div class="w-96 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between overflow-y-auto space-y-5">
                         <div class="space-y-4">
@@ -847,7 +849,7 @@
         }
 
         // =========================================================================
-        // LÓGICA DO NOVO MÓDULO: TAXA VARIÁVEL & PRESCRIÇÃO
+        // LÓGICA DO MÓDULO: TAXA VARIÁVEL & PRESCRIÇÃO
         // =========================================================================
         function initVRateMap() {
             if (!vrateMap) {
@@ -898,7 +900,7 @@
                     if (subKey) doseMap[subKey] = isNaN(doseVal) ? 0 : doseVal;
                 });
 
-                let totalArea = 0, totalProduct = 0, featureCount = 0;
+                let totalArea = 0, totalProduct = 0;
                 vrateProcessedData = [];
 
                 if (vrateGeojsonLayer) vrateMap.removeLayer(vrateGeojsonLayer);
@@ -911,11 +913,9 @@
 
                         totalArea += area;
                         totalProduct += (dose * area);
-                        featureCount++;
 
                         vrateProcessedData.push({ talhao: f.properties.Talhao, subs: f.properties.Subs || 'Gleba', area: area, dose: dose, total: (dose * area) });
 
-                        // Colorização por Faixa de Dose
                         let color = '#fee2e2';
                         if (dose > 300) color = '#15803d';
                         else if (dose > 200) color = '#22c55e';
@@ -931,7 +931,6 @@
                     }
                 }).addTo(vrateMap);
 
-                // Exibir Resumo Executivo
                 document.getElementById('vrate-summary-box').classList.remove('hidden');
                 document.getElementById('vrate-sum-prod').innerText = `${product} (${unit === 'kg_ha' ? 'kg/ha' : 't/ha'})`;
                 document.getElementById('vrate-sum-area').innerText = `${format1Decimal(totalArea)} ha`;
@@ -942,7 +941,6 @@
                 let finalTotalStr = unit === 'kg_ha' ? `${format1Decimal(totalProduct / 1000)} Toneladas (${format1Decimal(totalProduct)} kg)` : `${format1Decimal(totalProduct)} Toneladas`;
                 document.getElementById('vrate-sum-total').innerText = finalTotalStr;
 
-                // Legenda de Doses
                 document.getElementById('vrate-legend-items').innerHTML = `
                     <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#15803d"></div><span>Dose Alta (> 300)</span></div>
                     <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#22c55e"></div><span>Dose Média-Alta (200 - 300)</span></div>
@@ -951,12 +949,11 @@
                     <div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:#fee2e2"></div><span>Sem Aplicação (0)</span></div>
                 `;
 
-                alert('Mapa de recomendação a taxa variável processado com sucesso!');
+                alert('Mapa de prescrição a taxa variável processado com sucesso!');
             };
             reader.readAsBinaryString(fileInput.files[0]);
         }
 
-        // EXPORTAÇÃO COMPATÍVEL COM MONITORES AGRÍCOLAS
         async function exportForMonitor() {
             if (!vrateProcessedData.length) { alert('Processe primeiro a planilha de prescrição para exportar aos monitores!'); return; }
 
@@ -977,7 +974,6 @@
                 default: pathPrefix = `TASKDATA/`; break;
             }
 
-            // Inserir GeoJSON e Metadados do Monitor no ZIP
             const presJson = JSON.stringify(farmObj.geojson);
             zip.file(`${pathPrefix}${product}_Prescricao.geojson`, presJson);
             zip.file(`${pathPrefix}LEIA-ME_PENDRIVE.txt`, `Instruções de Carga do Monitor (${brand.toUpperCase()}):\n1. Extraia o conteúdo diretamente na raiz do Pendrive.\n2. Conecte o pendrive no terminal do trator/pulverizador.\n3. Selecione a Prescrição: ${product}`);
