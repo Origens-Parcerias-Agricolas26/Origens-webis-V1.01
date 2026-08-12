@@ -153,7 +153,7 @@
                                 </select>
                             </div>
 
-                            <!-- ANO SAFRA COM SELEÇÃO ÚNICA/SISTEMÁTICA DA SAFRA MAIS RECENTE -->
+                            <!-- ANO SAFRA COM PRESERVAÇÃO DE HISTÓRICO E SELEÇÃO ÚNICA DO ANO MAIS RECENTE -->
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="text-xs font-bold text-slate-500 uppercase"><i class="fa-solid fa-calendar-days text-origens-green mr-1"></i>Ano Safra (Múltiplo)</label>
@@ -178,6 +178,7 @@
                                         <option value="2026" selected>Safra 2026</option>
                                         <option value="2025">Safra 2025</option>
                                         <option value="2024">Safra 2024</option>
+                                        <option value="2023">Safra 2023</option>
                                         <option value="auto">Detectar da Planilha</option>
                                     </select>
                                 </div>
@@ -631,14 +632,13 @@
             return r;
         }
 
-        // BUSCA ESTRITA DA SAFRA SELECIONADA (SEM SOBREPOSIÇÃO DE ANOS ANTERIORES)
+        // BUSCA ESTRITA DA SAFRA SELECIONADA (SEM MISTURAR OUTROS ANOS)
         function getFeatureDepthData(feature, depthKey, selectedSafras) {
             if (!feature || !feature.properties) return {};
             const props = feature.properties;
 
             if (props.safras_historico && typeof props.safras_historico === 'object') {
                 if (selectedSafras && selectedSafras.length) {
-                    // Lê exclusivamente o primeiro ano safra marcado no filtro lateral
                     const targetSafra = selectedSafras[0];
                     if (props.safras_historico[targetSafra] && props.safras_historico[targetSafra][depthKey]) {
                         return props.safras_historico[targetSafra][depthKey];
@@ -1055,7 +1055,6 @@
             populateTalhaoSelector();
         }
 
-        // PRÉ-SELEÇÃO EXCLUSIVA DA SAFRA MAIS RECENTE
         function populateSafraSelector() {
             const selectedFarmKey = document.getElementById('sel-farm').value;
             const container = document.getElementById('container-safra-checkboxes');
@@ -1086,7 +1085,7 @@
                 return;
             }
 
-            // Marca EXCLUSIVAMENTE a primeira safra (a mais recente), e deixa as outras desmarcadas
+            // Seleciona EXCLUSIVAMENTE a safra mais recente (primeiro elemento) e deixa as demais desmarcadas
             container.innerHTML = sortedSafras.map((s, idx) => `
                 <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
                     <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
@@ -1457,7 +1456,7 @@
                 legendItems.innerHTML = `
                     <div class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] font-semibold space-y-1">
                         <span class="font-bold block"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Sem dados para "${param}"</span>
-                        <span>A planilha desta safra não possui valores preenchidos para este parâmetro. Selecione outro parâmetro como: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
+                        <span>A planilha desta safra não possui valores para este parâmetro. Tente selecionar: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
                     </div>
                 `;
             } else {
@@ -1670,6 +1669,7 @@
             XLSX.writeFile(wb, "Resumo_Adubacao_TaxaVariavel.xlsx");
         }
 
+        // SALVAMENTO E FUSÃO SEM SOBRESCREVER HISTÓRICO DE SAFRAS
         function processUploadedFiles() {
             if (currentUserRole !== 'admin') { alert("Apenas Administrador pode enviar arquivos."); return; }
             const farmKey = document.getElementById('sel-farm').value;
@@ -1727,6 +1727,7 @@
                 farmsDatabase[farmKey].geojson = baseGeoJSON;
                 const compressedZip = await compressGeoJSON(baseGeoJSON);
 
+                // Gravação com preservação de estado via merge no Firestore
                 await db.collection("farms").doc(farmKey).set({
                     name: String(farmsDatabase[farmKey].name || ''),
                     producer: String(farmsDatabase[farmKey].producer || ''),
@@ -1734,12 +1735,12 @@
                     area: Number(farmsDatabase[farmKey].area || 0),
                     geojsonZip: compressedZip,
                     isChunked: false
-                });
+                }, { merge: true });
 
                 populateSafraSelector();
                 populateTalhaoSelector();
                 updateGISMap();
-                alert(`Projeto e planilhas importados com sucesso para a fazenda!`);
+                alert(`Projeto e planilhas importados com sucesso mantendo o histórico de safras!`);
             };
 
             if (shpInput.files.length) {
@@ -1747,6 +1748,23 @@
                 reader.onload = function(e) {
                     shp(e.target.result).then(function(newGeojson) {
                         let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
+                        
+                        // Fusão das propriedades se a fazenda já possuir safras no Firestore
+                        if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
+                            const oldFeatureMap = {};
+                            currentFarm.geojson.features.forEach(oldF => {
+                                let fSub = oldF.properties ? (oldF.properties.Subs || oldF.properties.Subdivisao || oldF.properties.Talhao) : null;
+                                if (fSub) oldFeatureMap[cleanString(fSub)] = oldF.properties;
+                            });
+
+                            finalGeoJSON.features.forEach(newF => {
+                                let fSub = newF.properties ? (newF.properties.Subs || newF.properties.Subdivisao || newF.properties.Talhao) : null;
+                                if (fSub && oldFeatureMap[cleanString(fSub)]) {
+                                    newF.properties = { ...oldFeatureMap[cleanString(fSub)], ...newF.properties };
+                                }
+                            });
+                        }
+
                         runProcessGeoJSON(finalGeoJSON);
                     }).catch(err => alert("Erro ao ler o .zip do Shapefile."));
                 };
