@@ -1591,7 +1591,7 @@
 
             container.innerHTML = sortedSafras.map((s, idx) => `
                 <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
-                    <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap()" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
+                    <input type="checkbox" name="chk-safra-item" value="${s}" ${idx === 0 ? 'checked' : ''} onchange="updateGISMap(); populateTalhaoSelector();" class="chk-safra-item h-3.5 w-3.5 text-origens-green rounded">
                     <span>Safra ${s}</span>
                 </label>
             `).join('');
@@ -1607,10 +1607,18 @@
                 return;
             }
 
+            const selectedSafras = getSelectedSafras();
             const currentGeoJSON = farmsDatabase[selectedFarmKey].geojson || { "type": "FeatureCollection", "features": [] };
             const talhoesSet = new Set();
+
             if (currentGeoJSON.features && currentGeoJSON.features.length) {
-                currentGeoJSON.features.forEach(f => { if (f.properties && f.properties.Talhao) talhoesSet.add(String(f.properties.Talhao)); });
+                currentGeoJSON.features.forEach(f => {
+                    if (f.properties && f.properties.Talhao) {
+                        if (!selectedSafras.length || (f.properties.safras_historico && selectedSafras.some(s => f.properties.safras_historico[s]))) {
+                            talhoesSet.add(String(f.properties.Talhao));
+                        }
+                    }
+                });
             }
 
             const sortedTalhoes = Array.from(talhoesSet).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
@@ -1652,6 +1660,7 @@
             if (!items.length) return;
             const anyUnchecked = Array.from(items).some(i => !i.checked);
             items.forEach(i => i.checked = anyUnchecked);
+            populateTalhaoSelector();
             updateGISMap();
         }
 
@@ -1807,11 +1816,11 @@
                 ];
             } else if (param === 'Classes de P') {
                 return [
-                    { min: 1, max: 1, color: '#2B75E2', label: 'Classe 1 - Alto' },
-                    { min: 2, max: 2, color: '#265922', label: 'Classe 2 - Adequado' },
+                    { min: 5, max: 5, color: '#2B75E2', label: 'Classe 5 - Alto' },
+                    { min: 4, max: 4, color: '#265922', label: 'Classe 4 - Adequado' },
                     { min: 3, max: 3, color: '#FFFF00', label: 'Classe 3 - Médio' },
-                    { min: 4, max: 4, color: '#FF8811', label: 'Classe 4 - Baixo' },
-                    { min: 5, max: 5, color: '#801A1A', label: 'Classe 5 - Muito Baixo' }                    
+                    { min: 2, max: 2, color: '#FF8811', label: 'Classe 2 - Baixo' },
+                    { min: 1, max: 1, color: '#801A1A', label: 'Classe 1 - Muito Baixo' }
                 ];
             } else if (param === 'pH_água') {
                 return [
@@ -1929,7 +1938,20 @@
             const showValues = document.getElementById('chk-values') ? document.getElementById('chk-values').checked : true;
 
             const buildLayer = (depthKey) => L.geoJSON(currentGeoJSON, {
-                filter: f => !selectedTalhoes.length || selectedTalhoes.includes(String(f.properties.Talhao)),
+                filter: f => {
+                    // Filtra por talhão
+                    if (selectedTalhoes.length && !selectedTalhoes.includes(String(f.properties.Talhao))) {
+                        return false;
+                    }
+                    // Filtra por Safra: Só exibe o polígono no mapa se ele tiver dados cadastrados para as safras selecionadas
+                    if (selectedSafras && selectedSafras.length) {
+                        const featureSafra = f.properties.safra_origem || extractSafra(f.properties);
+                        const hasHistorico = f.properties && f.properties.safras_historico && selectedSafras.some(s => f.properties.safras_historico[s] && f.properties.safras_historico[s][depthKey]);
+                        const hasDirectSafra = featureSafra && selectedSafras.includes(featureSafra);
+                        if (!hasHistorico && !hasDirectSafra) return false;
+                    }
+                    return true;
+                },
                 style: f => {
                     const rawVal = getFeatureDepthData(f, depthKey, selectedSafras)[param];
                     const matched = getMatchedRule(rawVal, rules);
@@ -3730,7 +3752,7 @@
             }).join('');
         }
 
-        // SALVAMENTO E FUSÃO SEM SOBRESCREVER HISTÓRICO DE SAFRAS
+        // SALVAMENTO E FUSÃO ACUMULATIVA DE SHAPEFILES POR SAFRA
         function processUploadedFiles() {
             if (currentUserRole !== 'admin') { alert("Apenas Administrador pode enviar arquivos."); return; }
             const farmKey = document.getElementById('sel-farm').value;
@@ -3743,7 +3765,7 @@
             if (!farmKey || !farmsDatabase[farmKey]) { alert("Selecione uma fazenda!"); return; }
             const currentFarm = farmsDatabase[farmKey];
 
-            const runProcessGeoJSON = async (baseGeoJSON) => {
+            const runProcessGeoJSON = async (newSafraGeoJSON) => {
                 const parseExcel = (fileInput, fallbackDepthKey) => {
                     return new Promise((resolve) => {
                         if (fileInput.files.length) {
@@ -3761,7 +3783,7 @@
                                         let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
                                         if (!safraVal) safraVal = '2026';
 
-                                        baseGeoJSON.features.forEach(f => {
+                                        newSafraGeoJSON.features.forEach(f => {
                                             if (f.properties) {
                                                 let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Talhao;
                                                 if (fSub && cleanString(fSub) === subClean) {
@@ -3784,8 +3806,31 @@
                 await parseExcel(excel1020, 'd10_20');
                 await parseExcel(excel2040, 'd20_40');
 
-                farmsDatabase[farmKey].geojson = baseGeoJSON;
-                const compressedZip = await compressGeoJSON(baseGeoJSON);
+                // ACUMULAR RECURSIVAMENTE SHAPEFILES/GEOMETRIAS DE DIFERENTES SAFRAS
+                let combinedFeatures = [];
+                let safraTarget = uploadSafraYear !== 'auto' ? uploadSafraYear : '2026';
+
+                // Marcar polígonos da nova safra
+                newSafraGeoJSON.features.forEach(f => {
+                    f.properties = f.properties || {};
+                    f.properties.safra_origem = safraTarget;
+                    combinedFeatures.push(f);
+                });
+
+                // Preservar polígonos de safras anteriores enviadas no passado
+                if (currentFarm.geojson && currentFarm.geojson.features) {
+                    currentFarm.geojson.features.forEach(oldF => {
+                        let oldSafra = oldF.properties ? (oldF.properties.safra_origem || extractSafra(oldF.properties)) : null;
+                        if (oldSafra && oldSafra !== safraTarget) {
+                            combinedFeatures.push(oldF);
+                        }
+                    });
+                }
+
+                const finalCollection = { "type": "FeatureCollection", "features": combinedFeatures };
+
+                farmsDatabase[farmKey].geojson = finalCollection;
+                const compressedZip = await compressGeoJSON(finalCollection);
 
                 await db.collection("farms").doc(farmKey).set({
                     name: String(farmsDatabase[farmKey].name || ''),
@@ -3799,7 +3844,7 @@
                 populateSafraSelector();
                 populateTalhaoSelector();
                 updateGISMap();
-                alert(`Projeto e planilhas importados com sucesso mantendo o histórico de safras!`);
+                alert(`Projeto e perimetros da Safra ${safraTarget} importados com sucesso!`);
             };
 
             if (shpInput.files.length) {
@@ -3807,22 +3852,6 @@
                 reader.onload = function(e) {
                     shp(e.target.result).then(function(newGeojson) {
                         let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
-                        
-                        if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
-                            const oldFeatureMap = {};
-                            currentFarm.geojson.features.forEach(oldF => {
-                                let fSub = oldF.properties ? (oldF.properties.Subs || oldF.properties.Subdivisao || oldF.properties.Talhao) : null;
-                                if (fSub) oldFeatureMap[cleanString(fSub)] = oldF.properties;
-                            });
-
-                            finalGeoJSON.features.forEach(newF => {
-                                let fSub = newF.properties ? (newF.properties.Subs || newF.properties.Subdivisao || newF.properties.Talhao) : null;
-                                if (fSub && oldFeatureMap[cleanString(fSub)]) {
-                                    newF.properties = { ...oldFeatureMap[cleanString(fSub)], ...newF.properties };
-                                }
-                            });
-                        }
-
                         runProcessGeoJSON(finalGeoJSON);
                     }).catch(err => alert("Erro ao ler o .zip do Shapefile."));
                 };
