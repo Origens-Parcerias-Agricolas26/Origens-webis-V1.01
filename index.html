@@ -4118,111 +4118,143 @@
         }
 
         function processUploadedFiles() {
-            if (currentUserRole !== 'admin') { alert("Apenas Administrador pode enviar arquivos."); return; }
-            const farmKey = document.getElementById('sel-farm').value;
-            const uploadSafraYear = document.getElementById('upload-safra-year').value;
-            const shpInput = document.getElementById('file-shp');
-            const excel010 = document.getElementById('file-excel-0-10');
-            const excel1020 = document.getElementById('file-excel-10-20');
-            const excel2040 = document.getElementById('file-excel-20-40');
+    if (currentUserRole !== 'admin') { alert("Apenas Administrador pode enviar arquivos."); return; }
+    const farmKey = document.getElementById('sel-farm').value;
+    const uploadSafraYear = document.getElementById('upload-safra-year').value;
+    const shpInput = document.getElementById('file-shp');
+    const excel010 = document.getElementById('file-excel-0-10');
+    const excel1020 = document.getElementById('file-excel-10-20');
+    const excel2040 = document.getElementById('file-excel-20-40');
 
-            if (!farmKey || !farmsDatabase[farmKey]) { alert("Selecione uma fazenda!"); return; }
-            const currentFarm = farmsDatabase[farmKey];
+    if (!farmKey || !farmsDatabase[farmKey]) { alert("Selecione uma fazenda!"); return; }
+    const currentFarm = farmsDatabase[farmKey];
 
-            const runProcessGeoJSON = async (newSafraGeoJSON) => {
-                const parseExcel = (fileInput, fallbackDepthKey) => {
-                    return new Promise((resolve) => {
-                        if (fileInput.files.length) {
-                            const exReader = new FileReader();
-                            exReader.onload = function(exEvt) {
-                                const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
-                                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                                const data = XLSX.utils.sheet_to_json(sheet);
-                                
-                                data.forEach(r => {
-                                    let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba;
-                                    if (rawSub) {
-                                        const subClean = cleanString(rawSub);
-                                        const cleanRow = sanitizeAndCalculateSoilData(r);
-                                        let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
-                                        if (!safraVal) safraVal = '2026';
+    const runProcessGeoJSON = async (newSafraGeoJSON) => {
+        try {
+            const parseExcel = (fileInput, fallbackDepthKey) => {
+                return new Promise((resolve) => {
+                    if (fileInput.files.length) {
+                        const exReader = new FileReader();
+                        exReader.onload = function(exEvt) {
+                            const workbook = XLSX.read(exEvt.target.result, { type: 'binary' });
+                            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const data = XLSX.utils.sheet_to_json(sheet);
+                            
+                            data.forEach(r => {
+                                let rawSub = r.Subs || r.SUBS || r.subs || r.Subdivisao || r.TALHAO || r.Talhao || r.Gleba;
+                                if (rawSub) {
+                                    const subClean = cleanString(rawSub);
+                                    const cleanRow = sanitizeAndCalculateSoilData(r);
+                                    let safraVal = (uploadSafraYear !== 'auto') ? uploadSafraYear : extractSafra(r);
+                                    if (!safraVal) safraVal = '2026';
 
-                                        newSafraGeoJSON.features.forEach(f => {
-                                            if (f.properties) {
-                                                let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Talhao;
-                                                if (fSub && cleanString(fSub) === subClean) {
-                                                    f.properties.safras_historico = f.properties.safras_historico || {};
-                                                    f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
-                                                    f.properties.safras_historico[safraVal][fallbackDepthKey] = cleanRow;
-                                                }
+                                    newSafraGeoJSON.features.forEach(f => {
+                                        if (f.properties) {
+                                            let fSub = f.properties.Subs || f.properties.SUBS || f.properties.subs || f.properties.Subdivisao || f.properties.Talhao;
+                                            if (fSub && cleanString(fSub) === subClean) {
+                                                f.properties.safras_historico = f.properties.safras_historico || {};
+                                                f.properties.safras_historico[safraVal] = f.properties.safras_historico[safraVal] || {};
+                                                f.properties.safras_historico[safraVal][fallbackDepthKey] = cleanRow;
                                             }
-                                        });
-                                    }
-                                });
-                                resolve();
-                            };
-                            exReader.readAsBinaryString(fileInput.files[0]);
-                        } else { resolve(); }
-                    });
-                };
-
-                await parseExcel(excel010, 'd0_10');
-                await parseExcel(excel1020, 'd10_20');
-                await parseExcel(excel2040, 'd20_40');
-
-                let combinedFeatures = [];
-                let safraTarget = uploadSafraYear !== 'auto' ? uploadSafraYear : '2026';
-
-                newSafraGeoJSON.features.forEach(f => {
-                    f.properties = f.properties || {};
-                    f.properties.safra_origem = safraTarget;
-                    combinedFeatures.push(f);
+                                        }
+                                    });
+                                }
+                            });
+                            resolve();
+                        };
+                        exReader.readAsBinaryString(fileInput.files[0]);
+                    } else { resolve(); }
                 });
+            };
 
-                if (currentFarm.geojson && currentFarm.geojson.features) {
-                    currentFarm.geojson.features.forEach(oldF => {
-                        let oldSafra = oldF.properties ? (oldF.properties.safra_origem || extractSafra(oldF.properties)) : null;
-                        if (oldSafra && oldSafra !== safraTarget) {
-                            combinedFeatures.push(oldF);
-                        }
+            await parseExcel(excel010, 'd0_10');
+            await parseExcel(excel1020, 'd10_20');
+            await parseExcel(excel2040, 'd20_40');
+
+            let combinedFeatures = [];
+            let safraTarget = uploadSafraYear !== 'auto' ? uploadSafraYear : '2026';
+
+            newSafraGeoJSON.features.forEach(f => {
+                f.properties = f.properties || {};
+                f.properties.safra_origem = safraTarget;
+                combinedFeatures.push(f);
+            });
+
+            if (currentFarm.geojson && currentFarm.geojson.features) {
+                currentFarm.geojson.features.forEach(oldF => {
+                    let oldSafra = oldF.properties ? (oldF.properties.safra_origem || extractSafra(oldF.properties)) : null;
+                    if (oldSafra && oldSafra !== safraTarget) {
+                        combinedFeatures.push(oldF);
+                    }
+                });
+            }
+
+            const finalCollection = { "type": "FeatureCollection", "features": combinedFeatures };
+            farmsDatabase[farmKey].geojson = finalCollection;
+            
+            const compressedZip = await compressGeoJSON(finalCollection);
+
+            // SISTEMA DE FATIAMENTO (CHUNKING) PARA FAZENDAS GIGANTES
+            const MAX_CHUNK_SIZE = 900000; // Limite seguro de 900KB
+            if (compressedZip.length > MAX_CHUNK_SIZE) {
+                const chunkCount = Math.ceil(compressedZip.length / MAX_CHUNK_SIZE);
+                
+                await db.collection("farms").doc(farmKey).set({
+                    name: String(farmsDatabase[farmKey].name || ''),
+                    producer: String(farmsDatabase[farmKey].producer || ''),
+                    location: String(farmsDatabase[farmKey].location || ''),
+                    area: Number(farmsDatabase[farmKey].area || 0),
+                    geojsonZip: "", // Vazio no doc principal
+                    isChunked: true,
+                    chunkCount: chunkCount
+                }, { merge: true });
+
+                for (let i = 0; i < chunkCount; i++) {
+                    const chunkStr = compressedZip.substring(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
+                    await db.collection("farms").doc(farmKey).collection("chunks").doc(`chunk_${i}`).set({
+                        index: i,
+                        content: chunkStr
                     });
                 }
-
-                const finalCollection = { "type": "FeatureCollection", "features": combinedFeatures };
-
-                farmsDatabase[farmKey].geojson = finalCollection;
-                const compressedZip = await compressGeoJSON(finalCollection);
-
+            } else {
+                // Salvamento normal para fazendas menores
                 await db.collection("farms").doc(farmKey).set({
                     name: String(farmsDatabase[farmKey].name || ''),
                     producer: String(farmsDatabase[farmKey].producer || ''),
                     location: String(farmsDatabase[farmKey].location || ''),
                     area: Number(farmsDatabase[farmKey].area || 0),
                     geojsonZip: compressedZip,
-                    isChunked: false
+                    isChunked: false,
+                    chunkCount: 0
                 }, { merge: true });
-
-                populateSafraSelector();
-                populateTalhaoSelector();
-                updateGISMap();
-                alert(`Projeto e perimetros da Safra ${safraTarget} importados com sucesso!`);
-            };
-
-            if (shpInput.files.length) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    shp(e.target.result).then(function(newGeojson) {
-                        let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
-                        runProcessGeoJSON(finalGeoJSON);
-                    }).catch(err => alert("Erro ao ler o .zip do Shapefile."));
-                };
-                reader.readAsArrayBuffer(shpInput.files[0]);
-            } else if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
-                runProcessGeoJSON(currentFarm.geojson);
-            } else {
-                alert("Envie pelo menos o arquivo Shapefile (.zip) da fazenda!");
             }
+
+            populateSafraSelector();
+            populateTalhaoSelector();
+            updateGISMap();
+            alert(`Projeto e perimetros da Safra ${safraTarget} importados com sucesso!`);
+            
+        } catch (err) {
+            console.error("Erro no processamento:", err);
+            alert("Erro ao processar e salvar na nuvem: " + err.message);
         }
+    };
+
+    if (shpInput.files.length) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            shp(e.target.result).then(function(newGeojson) {
+                let finalGeoJSON = Array.isArray(newGeojson) ? newGeojson[0] : newGeojson;
+                runProcessGeoJSON(finalGeoJSON);
+            }).catch(err => alert("Erro ao ler o .zip do Shapefile: " + err.message));
+        };
+        reader.readAsArrayBuffer(shpInput.files[0]);
+    } else if (currentFarm.geojson && currentFarm.geojson.features && currentFarm.geojson.features.length) {
+        runProcessGeoJSON(currentFarm.geojson);
+    } else {
+        alert("Envie pelo menos o arquivo Shapefile (.zip) da fazenda!");
+    }
+}
     </script>
 </body>
 </html>
