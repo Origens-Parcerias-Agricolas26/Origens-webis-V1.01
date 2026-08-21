@@ -31,6 +31,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- jsPDF para Geração Direta de PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <!-- Firebase SDK Compat -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -66,6 +67,16 @@
             align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); font-size: 14px;
         }
         .ndvi-filter { filter: hue-rotate(80deg) saturate(220%) contrast(120%); }
+    </style>
+    <style>
+        /* Força a Aba de Administração a aparecer em ecrã inteiro quando não estiver oculta */
+        #admin-content:not(.hidden) {
+            display: block !important;
+            width: 100% !important;
+            min-height: 100vh !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans text-slate-800 antialiased">
@@ -138,7 +149,14 @@
                         <button onclick="switchTab('sampling')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800 hidden" id="tab-sampling">
                             <i class="fa-solid fa-vial-circle-check text-blue-400"></i><span>Amostragem de Solo</span>
                         </button>
-
+                        </button>
+                        <button onclick="switchTab('recommendation')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-recommendation">
+                            <i class="fa-solid fa-clipboard-list text-purple-400"></i><span>Recomendação Agronômica</span>
+                        </button>
+                        <!-- MÓDULO: RELATÓRIO DE VISITA -->
+                        <button onclick="switchTab('visit')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-visit">
+                            <i class="fa-solid fa-clipboard-user text-cyan-400"></i><span>Relatório de Visita</span>
+                        </button>
                         <div id="admin-only-menu" class="pt-4 border-t border-slate-800 mt-4 hidden">
                             <span class="text-xs text-slate-500 font-bold px-4 uppercase block mb-2">Administração</span>
                             <button onclick="switchTab('users')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800" id="tab-users">
@@ -223,9 +241,12 @@
                                     <label class="block text-[11px] font-bold text-amber-900 mb-1">Ano Safra das Planilhas</label>
                                     <select id="upload-safra-year" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-extrabold text-xs text-slate-900">
                                         <option value="2026" selected>Safra 2026</option>
+                                        <option value="2027">Safra 2027</option>
                                         <option value="2025">Safra 2025</option>
                                         <option value="2024">Safra 2024</option>
                                         <option value="2023">Safra 2023</option>
+                                        <option value="2022">Safra 2022</option>
+                                        <option value="2021">Safra 2021</option>
                                         <option value="auto">Detectar da Planilha</option>
                                     </select>
                                 </div>
@@ -631,6 +652,7 @@
                             </h2>
                             <p class="text-xs text-slate-500 mt-0.5">Status de coleta em tempo real sincronizado com a planilha do Google Sheets.</p>
                         </div>
+                        
                         <div class="flex items-center gap-3">
                             <button onclick="fetchSamplingData()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center gap-2 transition-all">
                                 <i class="fa-solid fa-rotate"></i><span>Atualizar Dados Agora</span>
@@ -729,6 +751,241 @@
                 </div>
 
                 <!-- GESTÃO DE ACESSOS -->
+
+                <div id="content-recommendation" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
+                    
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-list text-purple-600"></i>
+                                <span>Recomendação Agronômica Digital</span>
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">Vincule o estoque e gere receituários rápidos em PDF ou WhatsApp.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <input type="file" id="input-estoque-excel" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarEstoqueExcel(this)">
+                            <button onclick="document.getElementById('input-estoque-excel').click()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-file-import"></i><span id="txt-btn-estoque">1. Importar Estoque</span>
+                            </button>
+                            <button onclick="baixarEstoqueAtualizado()" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-file-export"></i><span>2. Baixar Estoque Atualizado</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
+                        
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            
+                            <!-- Info Básica (Dados da Aplicação) -->
+                            <div class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs font-black text-slate-700 uppercase block border-b pb-1">Dados da Aplicação</span>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    
+                                    <!-- Coluna Esquerda: Produtor, Fazenda e Importação de Talhões -->
+                                    <div class="space-y-3">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Produtor / Cliente</label>
+                                                <input type="text" id="rec_produtor" list="lista-produtores" onchange="carregarFazendasMemoria()" placeholder="Ex: João Silva" class="w-full text-xs font-bold p-2 border rounded-lg bg-white">
+                                                <datalist id="lista-produtores"></datalist>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Nome da Fazenda</label>
+                                                <input type="text" id="rec_fazenda" list="lista-fazendas" onchange="carregarTalhoesMemoria()" placeholder="Ex: Boa Vista" class="w-full text-xs font-bold p-2 border rounded-lg bg-white">
+                                                <datalist id="lista-fazendas"></datalist>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between items-center mb-1">
+                                                <label class="block text-[10px] font-bold text-slate-500">Talhões (Segure Ctrl para vários)</label>
+                                                <button onclick="document.getElementById('input-talhoes-excel').click()" class="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-2 py-0.5 rounded transition-all border border-blue-200"><i class="fa-solid fa-upload mr-1"></i>Importar Excel</button>
+                                                <input type="file" id="input-talhoes-excel" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarTalhoesExcel(this)">
+                                            </div>
+                                            <select id="rec_talhoes" multiple onchange="calcularAreaTalhoesRec()" class="w-full h-20 text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 outline-none">
+                                                <option value="" disabled>-- Importe a planilha de talhões --</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Coluna Direita: Cultura, Área e Calda -->
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Cultura / Safra</label>
+                                            <input type="text" id="rec_cultura" class="w-full text-xs font-bold p-2 border rounded-lg">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Área Total Selecionada (ha)</label>
+                                            <input type="number" id="rec_area" oninput="recalcularTodosProdutosRec()" class="w-full text-xs font-black text-slate-800 p-2 border border-slate-300 rounded-lg bg-amber-50">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Volume Calda (L/ha)</label>
+                                            <input type="number" id="rec_calda" value="50" oninput="calcularCalibracaoRec()" class="w-full text-xs font-bold p-2 border rounded-lg">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <span class="text-xs font-black text-blue-800 uppercase block border-b border-blue-200 pb-1">Datas e Clima</span>
+                                <div class="grid grid-cols-2 gap-3 mb-2">
+                                    <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Data Visita</label><input type="date" id="rec_data_visita" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                    <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Data Aplicação</label><input type="date" id="rec_data_aplicacao" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Temp. (°C)</label><input type="text" id="rec_temp" placeholder="< 30 °C" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                    <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Umid. (%)</label><input type="text" id="rec_ur" placeholder="> 55%" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                    <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vento (km/h)</label><input type="text" id="rec_vento" placeholder="3 - 10" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                </div>
+                            </div>
+                            
+                        </div>
+
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-3">
+                                <span class="text-xs font-black text-slate-700 uppercase"><i class="fa-solid fa-tractor text-green-600 mr-2"></i>Calibração do Pulverizador</span>
+                                <span id="rec_badge_ha_tanque" class="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-lg border border-amber-300">0.0 Ha / Tanque</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Modelo Pulverizador</label><input type="text" id="rec_eq_modelo" placeholder="Ex: Uniport 3000" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Capac. Tanque (L)</label><input type="number" id="rec_eq_tanque" value="3000" oninput="calcularCalibracaoRec()" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vazão (L/ha)</label><input type="number" id="rec_eq_vazao" value="60" oninput="calcularCalibracaoRec()" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Modelo de Bico</label><input type="text" id="rec_eq_bico" placeholder="Ex: AIXR 11002" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Tipo de Gota</label><input type="text" id="rec_eq_gota" placeholder="Ex: Grossa" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Pressão (PSI)</label><input type="text" id="rec_eq_pressao" placeholder="Ex: 40 PSI" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center border-b pb-2">
+                                <span class="text-sm font-black text-slate-800 uppercase">Produtos Recomendados</span>
+                                <button onclick="adicionarLinhaProduto()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow"><i class="fa-solid fa-plus mr-1"></i>Adicionar Produto</button>
+                            </div>
+                            <datalist id="lista-estoque"></datalist>
+                            <div class="hidden grid-cols-12 gap-2 text-[10px] font-black text-slate-500 uppercase px-2" id="rec-header">
+                                <div class="col-span-5">Produto (Do Estoque)</div>
+                                <div class="col-span-2 text-center">Dose / ha</div>
+                                <div class="col-span-2 text-center">Unid.</div>
+                                <div class="col-span-2 text-center">Total / Tanque</div>
+                                <div class="col-span-1 text-center"><i class="fa-solid fa-trash"></i></div>
+                            </div>
+                            <div id="container-produtos" class="space-y-2"></div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Observações Técnicas</label>
+                            <textarea id="rec_obs" rows="2" class="w-full text-xs font-semibold p-2 border border-slate-300 rounded-lg" placeholder="Instruções de ordem de mistura, pH da água, etc..."></textarea>
+                        </div>
+
+                        <div class="flex gap-4 pt-4 border-t border-slate-200">
+                            <button onclick="gerarPDFRecomendacao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-sm shadow transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-file-pdf"></i><span>Gerar Laudo PDF</span></button>
+                            <button onclick="enviarWhatsAppRecomendacao()" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-sm shadow transition-all flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp text-lg"></i><span>Enviar no WhatsApp</span></button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="pdf-recomendacao-template" style="display:none;"></div>
+
+                <!-- MÓDULO 6: RELATÓRIO DE VISITA TÉCNICA -->
+                <div id="content-visit" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-user text-cyan-600"></i>
+                                <span>Relatório de Visita Técnica</span>
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">Registre observações de campo, transcreva áudios com IA e anexe fotos da lavoura.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="toggleVisitView('form')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-pen"></i><span>Novo Relatório</span>
+                            </button>
+                            <button onclick="toggleVisitView('history'); loadVisitHistory();" class="bg-cyan-100 hover:bg-cyan-200 text-cyan-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-folder-open"></i><span>Histórico de Visitas</span>
+                            </button>
+                            <button id="btn-new-visit" onclick="toggleVisitView('form')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-pen"></i><span>Novo Relatório</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TELA 1: NOVO RELATÓRIO -->
+                    <div id="visit-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor</label>
+                        <select id="visit-sel-producer" onchange="changeActiveProducer('visit-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Fazenda</label>
+                        <!-- Agora ele chama a função global changeActiveFarm -->
+                        <select id="visit-sel-farm" onchange="changeActiveFarm('visit-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                    </div>
+                    <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Safra</label>
+        <!-- Transformado em campo de texto livre -->
+        <input type="text" id="visit-sel-safra" placeholder="Ex: 2025/2026" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+    </div>
+    <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Talhão / Área</label>
+        <!-- Transformado em campo de texto livre -->
+        <input type="text" id="visit-sel-talhao" placeholder="Ex: Visita Geral ou Talhão 1" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+    </div>
+</div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <input type="file" id="visit-audio-upload" accept="audio/*" class="hidden" onchange="handleAudioFileUpload(this)">
+                                <button onclick="document.getElementById('visit-audio-upload').click()" class="bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-lg text-[10px] shadow-sm flex items-center gap-1.5 transition-all">
+                                    <i class="fa-solid fa-file-audio"></i><span>Importar Áudio</span>
+                                </button>
+                                <button id="btn-mic-ia" onclick="toggleIAAudioTranscription()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] shadow-sm flex items-center gap-1.5 transition-all">
+                                    <i class="fa-solid fa-microphone"></i><span id="txt-mic-ia">Gravar pelo Microfone</span>
+                                </button>
+                                <button onclick="revisarRelatorioIA()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] shadow-sm flex items-center gap-1.5 transition-all mt-2">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i><span>Corrigir e Formatar (ABNT)</span>
+                                </button>
+                            </div>
+                            <textarea id="visit-report-text" rows="8" class="w-full text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Digite as observações agronômicas ou clique em Gravar Áudio para ditar o relatório..."></textarea>
+                        </div>
+
+                        <div class="space-y-2 border-t border-slate-200 pt-4">
+                            <label class="block text-xs font-bold text-slate-700 uppercase"><i class="fa-solid fa-camera text-cyan-600 mr-1"></i>Anexar Imagens (Pragas, Doenças, Lavoura)</label>
+                            <input type="file" id="visit-images-input" accept="image/*" multiple class="hidden" onchange="handleVisitImagesUpload(this)">
+                            <button onclick="document.getElementById('visit-images-input').click()" class="bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2">
+                                <i class="fa-solid fa-image"></i> Escolher Fotos
+                            </button>
+                            <div id="visit-images-preview" class="flex flex-wrap gap-3 mt-3"></div>
+                        </div>
+
+                        <div class="pt-4 mt-auto border-t border-slate-200 flex justify-end">
+                            <button onclick="saveAndGenerateVisitReport()" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-6 py-3 rounded-xl text-sm shadow-md flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-cloud-arrow-up"></i><span>Salvar e Gerar Laudo PDF</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TELA 2: HISTÓRICO DE RELATÓRIOS -->
+                    <div id="visit-history-view" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-4">
+                        <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-700 uppercase text-[10px] font-black tracking-wider">
+                                        <th class="p-3">Data</th>
+                                        <th class="p-3">Fazenda / Produtor</th>
+                                        <th class="p-3">Safra / Talhão</th>
+                                        <th class="p-3 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="visit-table-body" class="divide-y divide-slate-200 font-medium">
+                                    <!-- Preenchido via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- CONTAINER OCULTO PARA GERAR O PDF DO RELATÓRIO -->
+                <div id="pdf-visit-template" style="display:none;"></div>
                 <div id="content-users" class="hidden space-y-6 overflow-y-auto h-full pr-2">
                     <div class="flex justify-between items-center border-b pb-4">
                         <div>
@@ -816,6 +1073,19 @@
                                     <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
                                         <input type="checkbox" id="chk-allow-sampling" class="h-4 w-4 text-blue-600 rounded">
                                         <span><i class="fa-solid fa-vial-circle-check text-blue-600 mr-1"></i>Permitir Módulo de Amostragem de Solo</span>
+                                    </label>
+                                    
+                                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                                        <input type="checkbox" id="chk-allow-recommendation" class="h-4 w-4 text-purple-600 rounded">
+                                        <span><i class="fa-solid fa-clipboard-list text-purple-600 mr-1"></i>Permitir Módulo de Recomendação Agronômica</span>
+                                    </label>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                                        <input type="checkbox" id="chk-allow-visit" class="h-4 w-4 text-cyan-600 rounded">
+                                        <span><i class="fa-solid fa-clipboard-user text-cyan-600 mr-1"></i>Permitir Ler Relatórios de Visita</span>
+                                    </label>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                                        <input type="checkbox" id="chk-allow-edit-visit" class="h-4 w-4 text-red-600 rounded">
+                                        <span><i class="fa-solid fa-pen text-red-600 mr-1"></i>Permitir Criar/Editar Relatórios</span>
                                     </label>
                                 </div>
 
@@ -918,8 +1188,10 @@
         
         let currentUser = null, currentUserRole = "client", currentUserAllowedFarms = [];
         let canAccessSampling = false, canAccessVRate = false, canAccessSeeds = false;
+        let canAccessRecommendation = false;
         
         let farmsDatabase = {}, usersDatabase = [];
+        let canAccessVisit = false, canEditVisit = false;
         let savedPrescriptionsDatabase = [];
         let extraExcelDatabase = [];
         let splitPosition = 0.5, isSyncing = false;
@@ -991,6 +1263,7 @@
             canAccessSampling = false;
             canAccessVRate = false;
             canAccessSeeds = false;
+            canAccessRecommendation = false;
 
             if (adminEmails.includes(userEmail)) { 
                 currentUserRole = "admin"; 
@@ -998,6 +1271,9 @@
                 canAccessSampling = true;
                 canAccessVRate = true;
                 canAccessSeeds = true;
+                canAccessRecommendation = true;
+                canAccessVisit = true;
+                canEditVisit = true;
             } else {
                 try {
                     const userDoc = await db.collection("users").doc(userEmail).get();
@@ -1006,8 +1282,11 @@
                         currentUserRole = userData.role || "client";
                         currentUserAllowedFarms = userData.farms || [];
                         canAccessSampling = !!userData.allowSampling;
+                        canAccessRecommendation = userData.allowRecommendation || false;
                         canAccessVRate = !!userData.allowVRate;
                         canAccessSeeds = !!userData.allowSeeds;
+                        canAccessVisit = !!userData.allowVisit;
+                        canEditVisit = !!userData.allowEditVisit;
                     } else { 
                         alert("Acesso restrito à equipe Origens ou usuários autorizados pelo administrador!"); 
                         await auth.signOut(); 
@@ -1048,10 +1327,18 @@
             const tabVrateBtn = document.getElementById('tab-vrate');
             const tabSeedsBtn = document.getElementById('tab-seeds');
             const tabSamplingBtn = document.getElementById('tab-sampling');
-
+            const tabRec = document.getElementById('tab-recommendation');
+            
+            if (tabRec) typeof canAccessRecommendation !== 'undefined' && canAccessRecommendation ? tabRec.classList.remove('hidden') : tabRec.classList.add('hidden');
             if (tabVrateBtn) canAccessVRate ? tabVrateBtn.classList.remove('hidden') : tabVrateBtn.classList.add('hidden');
             if (tabSeedsBtn) canAccessSeeds ? tabSeedsBtn.classList.remove('hidden') : tabSeedsBtn.classList.add('hidden');
             if (tabSamplingBtn) canAccessSampling ? tabSamplingBtn.classList.remove('hidden') : tabSamplingBtn.classList.add('hidden');
+            
+            const tabVisit = document.getElementById('tab-visit');
+            if (tabVisit) canAccessVisit ? tabVisit.classList.remove('hidden') : tabVisit.classList.add('hidden');
+
+            const btnNewVisit = document.getElementById('btn-new-visit');
+            if (btnNewVisit) canEditVisit ? btnNewVisit.classList.remove('hidden') : btnNewVisit.classList.add('hidden');
 
             await loadCloudData();
             initLeafletMap();
@@ -1444,9 +1731,15 @@
             document.getElementById('chk-allow-vrate').checked = !!user.allowVRate;
             document.getElementById('chk-allow-seeds').checked = !!user.allowSeeds;
             document.getElementById('chk-allow-sampling').checked = !!user.allowSampling;
+            if (document.getElementById('chk-allow-recommendation')) {
+            document.getElementById('chk-allow-recommendation').checked = !!user.allowRecommendation;
+        }
 
             document.getElementById('btn-save-user').innerText = "Atualizar Permissões do Cliente";
             document.getElementById('btn-cancel-user-edit').classList.remove('hidden');
+
+            if (document.getElementById('chk-allow-visit')) document.getElementById('chk-allow-visit').checked = !!user.allowVisit;
+            if (document.getElementById('chk-allow-edit-visit')) document.getElementById('chk-allow-edit-visit').checked = !!user.allowEditVisit;
         }
 
         function cancelUserEdit() {
@@ -1462,9 +1755,13 @@
             document.getElementById('chk-allow-vrate').checked = false;
             document.getElementById('chk-allow-seeds').checked = false;
             document.getElementById('chk-allow-sampling').checked = false;
+            document.getElementById('chk-allow-recommendation').checked = false;
 
             document.getElementById('btn-save-user').innerText = "Autorizar E-mail Google";
             document.getElementById('btn-cancel-user-edit').classList.add('hidden');
+
+            if (document.getElementById('chk-allow-visit')) document.getElementById('chk-allow-visit').checked = false;
+            if (document.getElementById('chk-allow-edit-visit')) document.getElementById('chk-allow-edit-visit').checked = false;
         }
 
         async function handleCreateUser(e) {
@@ -1486,6 +1783,9 @@
             const allowVRate = document.getElementById('chk-allow-vrate').checked;
             const allowSeeds = document.getElementById('chk-allow-seeds').checked;
             const allowSampling = document.getElementById('chk-allow-sampling').checked;
+            const allowRecommendation = document.getElementById('chk-allow-recommendation') ? document.getElementById('chk-allow-recommendation').checked : false;
+            const allowVisit = document.getElementById('chk-allow-visit') ? document.getElementById('chk-allow-visit').checked : false;
+            const allowEditVisit = document.getElementById('chk-allow-edit-visit') ? document.getElementById('chk-allow-edit-visit').checked : false;
 
             const name = nameInput.value.trim();
             const email = emailInput.value.trim().toLowerCase();
@@ -1513,7 +1813,10 @@
                 farms: selectedFarms, 
                 allowVRate: allowVRate, 
                 allowSeeds: allowSeeds, 
-                allowSampling: allowSampling 
+                allowSampling: allowSampling, // corrigi a digitação que estava "allowSamplin" no seu código original
+                allowRecommendation: allowRecommendation,
+                allowVisit: allowVisit,
+                allowEditVisit: allowEditVisit
             };
 
             try {
@@ -1559,14 +1862,15 @@
             const prodSelect = document.getElementById('sel-producer');
             const vrateProdSelect = document.getElementById('vrate-sel-producer');
             const seedsProdSelect = document.getElementById('seeds-sel-producer');
+            const visitProdSelect = document.getElementById('visit-sel-producer'); // <- Adicionado
 
             if (!prodSelect) return;
-
             const currentVal = prodSelect.value || 'all';
 
             prodSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
             if (vrateProdSelect) vrateProdSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
             if (seedsProdSelect) seedsProdSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
+            if (visitProdSelect) visitProdSelect.innerHTML = '<option value="all">Todos os Produtores</option>'; // <- Adicionado
 
             let producersSet = new Set();
             let keysToDisplay = Object.keys(farmsDatabase);
@@ -1585,36 +1889,39 @@
                 prodSelect.innerHTML += `<option value="${p}">${p}</option>`;
                 if (vrateProdSelect) vrateProdSelect.innerHTML += `<option value="${p}">${p}</option>`;
                 if (seedsProdSelect) seedsProdSelect.innerHTML += `<option value="${p}">${p}</option>`;
+                if (visitProdSelect) visitProdSelect.innerHTML += `<option value="${p}">${p}</option>`; // <- Adicionado
             });
 
             prodSelect.value = currentVal;
             if (vrateProdSelect) vrateProdSelect.value = currentVal;
             if (seedsProdSelect) seedsProdSelect.value = currentVal;
+            if (visitProdSelect) visitProdSelect.value = currentVal; // <- Adicionado
         }
 
         function changeActiveProducer(sourceSelectId) {
             const selectedVal = document.getElementById(sourceSelectId).value;
-            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer'].forEach(id => {
+            // <- Adicionamos o ID da Visita na sincronização abaixo
+            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && el.value !== selectedVal) el.value = selectedVal;
             });
             
             populateFarmSelector();
-            
-            // Força a atualização do mapa para a primeira fazenda do produtor selecionado
             changeActiveFarm('sel-farm');
         }
 
         function populateFarmSelector() {
-            populateProducerSelector(); // Garante que a lista de produtores está atualizada primeiro
+            populateProducerSelector();
 
             const farmSelect = document.getElementById('sel-farm');
             const vrateSelect = document.getElementById('vrate-sel-farm');
             const seedsSelect = document.getElementById('seeds-sel-farm');
+            const visitSelect = document.getElementById('visit-sel-farm'); // <- Adicionado
 
             if (farmSelect) farmSelect.innerHTML = '';
             if (vrateSelect) vrateSelect.innerHTML = '';
             if (seedsSelect) seedsSelect.innerHTML = '';
+            if (visitSelect) visitSelect.innerHTML = ''; // <- Adicionado
 
             let keysToDisplay = Object.keys(farmsDatabase);
             if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
@@ -1626,11 +1933,11 @@
             keysToDisplay.forEach(key => {
                 if (farmsDatabase[key]) {
                     const farm = farmsDatabase[key];
-                    // Só adiciona a fazenda se for "Todos" ou se o produtor for o selecionado
                     if (selectedProducer === 'all' || farm.producer === selectedProducer) {
                         if (farmSelect) farmSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
                         if (vrateSelect) vrateSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
                         if (seedsSelect) seedsSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
+                        if (visitSelect) visitSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`; // <- Adicionado
                     }
                 }
             });
@@ -1648,10 +1955,11 @@
             populateSafraSelector();
             populateTalhaoSelector();
         }
-           
+
         function changeActiveFarm(sourceSelectId) {
             const selectedVal = document.getElementById(sourceSelectId).value;
-            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm'].forEach(id => {
+            // <- Adicionamos o ID da Visita na sincronização abaixo
+            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && el.value !== selectedVal) el.value = selectedVal;
             });
@@ -1673,6 +1981,10 @@
                 alert("Você não possui permissão de acesso ao Módulo de Taxa Variável & Adubação.");
                 return;
             }
+            if (tab === 'visit' && !canAccessVisit) {
+                alert("Você não possui permissão de acesso ao Módulo de Relatório de Visita.");
+                return;
+            }
             if (tab === 'seeds' && !canAccessSeeds) {
                 alert("Você não possui permissão de acesso ao Módulo de Sementes & Plantio.");
                 return;
@@ -1682,7 +1994,8 @@
                 return;
             }
 
-            ['maps', 'vrate', 'seeds', 'sampling', 'users'].forEach(t => {
+            // 👇 AQUI ESTÁ A CORREÇÃO: O 'visit' foi adicionado na lista!
+            ['maps', 'vrate', 'seeds', 'sampling', 'users', 'recommendation', 'visit'].forEach(t => {
                 const el = document.getElementById(`content-${t}`);
                 const btn = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
@@ -1710,6 +2023,12 @@
                 }, 100);
             } else if (tab === 'users') {
                 renderAdminTables();
+                } else if (tab === 'visit') {
+                    if (!canEditVisit) {
+                toggleVisitView('history'); // Se não puder editar, força ir pro Histórico e nem ver o formulário
+            }
+                loadVisitHistory();
+            } else if (tab === 'users') {
             }
         }
 
@@ -4577,6 +4896,1050 @@
 
             populateSafraSelector();
             populateTalhaoSelector();
+        }
+        // =========================================================================
+        // MÓDULO 5: RECOMENDAÇÃO AGRONÔMICA E ESTOQUE
+        // =========================================================================
+        // =========================================================================
+        // MÓDULO 5: RECOMENDAÇÃO AGRONÔMICA E ESTOQUE
+        // =========================================================================
+       
+        let estoqueFazenda = [];
+        let recRowId = 0;
+
+        function importarEstoqueExcel(inputEl) {
+            if (!inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // O pulo do gato {raw: false}: força o sistema a ler as datas exatamente como texto (ex: 10/09/2026)
+                    const rows = XLSX.utils.sheet_to_json(sheet, { raw: false });
+                    
+                    let produtosAdicionados = 0;
+                    let produtosSomados = 0;
+
+                    rows.forEach(r => {
+                        // Limpa os nomes das colunas (tira espaços invisíveis e põe em maiúsculas) para nunca falhar a leitura
+                        let linhaLimpa = {};
+                        for (let key in r) {
+                            linhaLimpa[key.trim().toUpperCase()] = r[key];
+                        }
+
+                        // Agora a busca é feita nas colunas limpas
+                        const ingrediente = linhaLimpa['PRODUTO'] || linhaLimpa['INGREDIENTE ATIVO (GRUPO QUÍMICO)'] || 'Sem Nome';
+                        if (ingrediente === 'Sem Nome') return;
+
+                        const lote = linhaLimpa['LOTE'] || '-';
+                        const validade = linhaLimpa['VALIDADE'] || '-';
+                        const unid = linhaLimpa['UNID.'] || linhaLimpa['UNID'] || 'L';
+                        
+                        // Garante que a quantidade seja convertida corretamente, mesmo se o Excel puser vírgulas
+                        let volumeStr = linhaLimpa['QUANTIDADE'] || linhaLimpa['ESTOQUE'] || linhaLimpa['VOLUME'] || '0';
+                        if (typeof volumeStr === 'string') volumeStr = volumeStr.replace(/,/g, ''); 
+                        const volume = parseFloat(volumeStr) || 0;
+                        
+                        const produtoExistente = estoqueFazenda.find(p => 
+                            p.ingrediente === ingrediente && 
+                            p.lote === lote && 
+                            p.validade === validade
+                        );
+
+                        if (produtoExistente) {
+                            produtoExistente.volume += volume;
+                            produtosSomados++;
+                        } else {
+                            estoqueFazenda.push({ ingrediente, lote, validade, unid, volume, nomeExibicao: '' });
+                            produtosAdicionados++;
+                        }
+                    });
+
+                    atualizarDatalistEstoque();
+                    alert(`Estoque atualizado com sucesso!\n\n🔹 ${produtosSomados} produtos somados.\n🔹 ${produtosAdicionados} novos adicionados.`);
+                    inputEl.value = ''; // Limpa o input
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao ler planilha de estoque. Verifique se o formato está correto.");
+                }
+            };
+            reader.readAsBinaryString(file);
+        }
+        function atualizarDatalistEstoque() {
+            const datalist = document.getElementById('lista-estoque');
+            if (datalist) {
+                // Reescreve os itens na memória com o saldo abatido
+                estoqueFazenda.forEach(p => {
+                    p.nomeExibicao = `${p.ingrediente} | Lote: ${p.lote} | Val: ${p.validade} | Est: ${p.volume.toFixed(2)} ${p.unid}`;
+                });
+                datalist.innerHTML = estoqueFazenda.map(p => `<option value="${p.nomeExibicao}" data-unid="${p.unid}">`).join('');
+            }
+            const btnTxt = document.getElementById('txt-btn-estoque');
+            if(btnTxt) btnTxt.innerText = `${estoqueFazenda.length} Produtos na Memória`;
+        }
+        function adicionarLinhaProduto() {
+            document.getElementById('rec-header').classList.remove('hidden');
+            document.getElementById('rec-header').classList.add('grid');
+            recRowId++;
+            const container = document.getElementById('container-produtos');
+            const id = recRowId;
+            
+            const div = document.createElement('div');
+            div.className = "grid grid-cols-12 gap-2 items-center";
+            div.id = `rec-linha-${id}`;
+            div.innerHTML = `
+                <div class="col-span-5"><input type="text" list="lista-estoque" id="rec_prod_${id}" onchange="preencherUnidade(${id})" placeholder="Buscar no estoque..." class="w-full text-xs font-bold p-2 border rounded-lg bg-white"></div>
+                <div class="col-span-2"><input type="number" step="0.01" id="rec_dose_${id}" oninput="calcularTotalRec(${id})" placeholder="Dose" class="w-full text-xs font-bold p-2 border rounded-lg text-center"></div>
+                <div class="col-span-2"><input type="text" id="rec_unid_${id}" placeholder="Unid." class="w-full text-[10px] font-bold p-2 border rounded-lg text-center bg-slate-50"></div>
+                <div class="col-span-2"><input type="text" id="rec_total_${id}" readonly class="w-full text-xs font-bold p-2 border rounded-lg text-center bg-emerald-50 text-emerald-800"></div>
+                <div class="col-span-1 text-center"><button onclick="removerLinhaProduto(${id})" class="text-red-500 hover:text-red-700 font-bold p-1"><i class="fa-solid fa-circle-xmark"></i></button></div>
+            `;
+            container.appendChild(div);
+        }
+
+        function removerLinhaProduto(id) {
+            const linha = document.getElementById(`rec-linha-${id}`);
+            if (linha) linha.remove();
+            if (document.getElementById('container-produtos').children.length === 0) {
+                document.getElementById('rec-header').classList.add('hidden');
+                document.getElementById('rec-header').classList.remove('grid');
+            }
+        }
+
+        function preencherUnidade(id) {
+            const val = document.getElementById(`rec_prod_${id}`).value;
+            const option = document.querySelector(`#lista-estoque option[value="${val}"]`);
+            if (option) document.getElementById(`rec_unid_${id}`).value = option.getAttribute('data-unid');
+        }
+
+        function calcularCalibracaoRec() {
+            // Calcula quantos Hectares um tanque cheio consegue fazer
+            const tanque = parseFloat(document.getElementById('rec_eq_tanque').value) || 0;
+            const vazao = parseFloat(document.getElementById('rec_eq_vazao').value) || 0;
+            
+            let haPorTanque = vazao > 0 ? (tanque / vazao) : 0;
+            document.getElementById('rec_badge_ha_tanque').innerText = `${haPorTanque.toFixed(1)} Ha / Tanque`;
+
+            // Manda recalcular todos os produtos com base no novo tamanho do tanque
+            recalcularTodosProdutosRec();
+        }
+
+        function calcularTotalRec(id) {
+            // Pega o cálculo de Hectares por Tanque
+            const tanque = parseFloat(document.getElementById('rec_eq_tanque').value) || 0;
+            const vazao = parseFloat(document.getElementById('rec_eq_vazao').value) || 0;
+            const haPorTanque = vazao > 0 ? (tanque / vazao) : 0;
+
+            // Pega a dose digitada e multiplica pela capacidade do tanque em hectares
+            const dose = parseFloat(document.getElementById(`rec_dose_${id}`).value) || 0;
+            const totalTanque = dose * haPorTanque;
+            
+            // Atualiza a caixinha verde na tela
+            const campoTotal = document.getElementById(`rec_total_${id}`);
+            if(campoTotal) {
+                campoTotal.value = totalTanque.toFixed(1);
+            }
+        }
+        
+        // Coloca a data de hoje automaticamente ao carregar a página
+        window.addEventListener('DOMContentLoaded', () => {
+            const hoje = new Date().toISOString().split('T')[0];
+            const inpVisita = document.getElementById('rec_data_visita');
+            const inpAplicacao = document.getElementById('rec_data_aplicacao');
+            if(inpVisita) inpVisita.value = hoje;
+            if(inpAplicacao) inpAplicacao.value = hoje;
+        });
+
+        function enviarWhatsAppRecomendacao() {
+            const fazenda = document.getElementById('rec_fazenda').value || 'Não informada';
+            const cultura = document.getElementById('rec_cultura').value || 'Não informada';
+            const area = document.getElementById('rec_area').value || 0;
+            
+            let texto = `🌱 *RECOMENDAÇÃO AGRONÔMICA - ORIGENS*\\n\\n`;
+            texto += `📍 *Propriedade:* ${fazenda}\\n`;
+            texto += `🌾 *Cultura:* ${cultura}\\n`;
+            texto += `📐 *Área Alvo:* ${area} ha\\n\\n`;
+            
+            texto += `*PRODUTOS RECOMENDADOS:*\\n`;
+            const linhas = document.querySelectorAll('[id^="rec-linha-"]');
+            if (linhas.length === 0) { alert("Adicione pelo menos um produto!"); return; }
+
+            linhas.forEach(linha => {
+                const id = linha.id.replace('rec-linha-', '');
+                const prod = document.getElementById(`rec_prod_${id}`).value;
+                const dose = document.getElementById(`rec_dose_${id}`).value;
+                const unid = document.getElementById(`rec_unid_${id}`).value;
+                const total = document.getElementById(`rec_total_${id}`).value;
+                if (prod && dose) {
+                    texto += `🔹 *${prod}*\\n   Dose: ${dose} ${unid}/ha | Total: ${total} ${unid}\\n`;
+                }
+            });
+
+            const obs = document.getElementById('rec_obs').value.trim();
+            if (obs) texto += `\\n📝 *OBSERVAÇÕES:*\\n${obs}\\n`;
+
+            texto += `\\n_Gerado pela Plataforma WebGIS Origens_`;
+            
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+            window.open(url, '_blank');
+        }
+
+        function gerarPDFRecomendacao() {
+            salvarMemoriaRecomendacao();
+            
+            const produtor = document.getElementById('rec_produtor').value || 'Não informado';
+            const fazenda = document.getElementById('rec_fazenda').value || 'Não informada';
+            const clienteFinal = `${produtor} - ${fazenda}`;
+            
+            const cultura = document.getElementById('rec_cultura').value || 'Não informada';
+            const area = parseFloat(document.getElementById('rec_area').value) || 0;
+            const calda = document.getElementById('rec_calda').value || 0;
+            const temp = document.getElementById('rec_temp').value || '---';
+            const ur = document.getElementById('rec_ur').value || '---';
+            const vento = document.getElementById('rec_vento').value || '---';
+            const obs = document.getElementById('rec_obs').value.trim();
+
+            let linhasHtml = '';
+            
+            document.querySelectorAll('[id^="rec-linha-"]').forEach((linha, idx) => {
+                const id = linha.id.replace('rec-linha-', '');
+                const prodBusca = document.getElementById(`rec_prod_${id}`).value || '-';
+                const dose = parseFloat(document.getElementById(`rec_dose_${id}`).value) || 0;
+                const unid = document.getElementById(`rec_unid_${id}`).value || '-';
+                const totalTanque = document.getElementById(`rec_total_${id}`).value || '-';
+                const totalArea = dose * area;
+
+                // 🔍 Busca DEFINITIVA à prova de falhas
+                let nomeFinal = prodBusca;
+                let lote = '-';
+                let validade = '-';
+                
+                const prodEstoque = estoqueFazenda.find(p => {
+                    const buscaSemEst = prodBusca.split(' | Est:')[0].trim().toLowerCase();
+                    const estoqueSemEst = (p.nomeExibicao || '').split(' | Est:')[0].trim().toLowerCase();
+                    if (buscaSemEst === estoqueSemEst && estoqueSemEst !== '') return true;
+                    
+                    const buscaSoNome = prodBusca.split(' | ')[0].trim().toLowerCase();
+                    const ingredienteLimpo = p.ingrediente.trim().toLowerCase();
+                    
+                    return buscaSoNome === ingredienteLimpo || ingredienteLimpo.includes(buscaSoNome);
+                });
+
+                if (prodEstoque) {
+                    nomeFinal = prodEstoque.ingrediente;
+                    lote = prodEstoque.lote;
+                    validade = prodEstoque.validade;
+                    prodEstoque.volume -= totalArea; 
+                }
+
+                let bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+                linhasHtml += `
+                    <tr style="background-color: ${bg}; border-bottom: 1px solid #e2e8f0; font-size: 10px;">
+                        <td style="padding: 6px; font-weight: bold; color: #1e293b;">${nomeFinal}</td>
+                        <td style="padding: 6px; text-align: center; color: #64748b;">${lote}<br>${validade}</td>
+                        <td style="padding: 6px; text-align: center;">${dose.toFixed(2)}</td>
+                        <td style="padding: 6px; text-align: center;">${totalTanque} ${unid}</td>
+                        <td style="padding: 6px; text-align: right; font-weight: bold; color: #15803d;">${totalArea.toFixed(1)} ${unid}</td>
+                    </tr>
+                `;
+            });
+
+            atualizarDatalistEstoque();
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const consNome = typeof currentUser !== 'undefined' && currentUser ? (currentUser.displayName || currentUser.email) : 'Consultor Responsável';
+
+            let template = `
+                <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white;">
+                    <div style="border-bottom: 2px solid #16a34a; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h1 style="color: #16a34a; margin: 0; font-size: 22px; font-weight: 900;">RECEITUÁRIO AGRONÔMICO</h1>
+                            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 11px; font-weight: bold;">ORIGENS PARCERIAS AGRÍCOLAS | DATA: ${dataHoje}</p>
+                        </div>
+                    </div>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                            <tr>
+                                <td style="padding: 4px; width: 50%;"><b>Fazenda/Cliente:</b> ${clienteFinal}</td>
+                                <td style="padding: 4px; width: 50%;"><b>Área Alvo:</b> ${area} ha</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px;"><b>Cultura:</b> ${cultura}</td>
+                                <td style="padding: 4px;"><b>Volume Calda:</b> ${calda} L/ha</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <h3 style="font-size: 12px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">PRODUTOS RECOMENDADOS</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                        <thead>
+                            <tr style="background-color: #16a34a; color: white; text-transform: uppercase; font-size: 9px;">
+                                <th style="padding: 6px; text-align: left;">Produto Comercial / I.A.</th>
+                                <th style="padding: 6px; text-align: center;">Lote / Validade</th>
+                                <th style="padding: 6px; text-align: center;">Dose/ha</th>
+                                <th style="padding: 6px; text-align: center;">Total/Tanque</th>
+                                <th style="padding: 6px; text-align: right;">Total p/ Área</th>
+                            </tr>
+                        </thead>
+                        <tbody>${linhasHtml}</tbody>
+                    </table>
+                    <h3 style="font-size: 12px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">CONDIÇÕES AMBIENTAIS MÍNIMAS</h3>
+                    <p style="font-size: 11px; color: #334155; margin: 0 0 15px 0;">
+                        <b>Temperatura:</b> ${temp} | <b>Umidade Relativa:</b> ${ur} | <b>Vento:</b> ${vento}
+                    </p>
+                    <h3 style="font-size: 12px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">OBSERVAÇÕES TÉCNICAS</h3>
+                    <p style="font-size: 11px; color: #334155; white-space: pre-wrap; margin-bottom: 30px;">${obs || 'Nenhuma observação informada.'}</p>
+                    <div style="margin-top: 50px; text-align: center;">
+                        <div style="width: 250px; border-top: 1px solid #000; margin: 0 auto; padding-top: 5px;">
+                            <p style="margin: 0; font-size: 11px; font-weight: bold;">${consNome}</p>
+                            <p style="margin: 0; font-size: 9px; color: #64748b;">Responsável Técnico</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const nomeFazendaLimpo = fazenda.split(' ').join('_');
+            const dataLimpa = dataHoje.split('/').join('-');
+            
+            const opt = {
+                margin: 0,
+                filename: `Recomendacao_${nomeFazendaLimpo}_${dataLimpa}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = template;
+            html2pdf().set(opt).from(tempDiv).save();
+        }
+        function baixarEstoqueAtualizado() {
+            if (estoqueFazenda.length === 0) {
+                alert("Nenhum estoque importado na memória para ser baixado.");
+                return;
+            }
+
+            // Prepara os dados de volta para o formato de tabela do Excel
+            const dadosPlanilha = estoqueFazenda.map(p => ({
+                'INGREDIENTE ATIVO (GRUPO QUÍMICO)': p.ingrediente,
+                'CONCENTRAÇÃO': p.concentracao,
+                'EMPRESA': p.empresa,
+                'LOTE': p.lote,
+                'VALIDADE': p.validade,
+                'UNID.': p.unid,
+                'ESTOQUE': parseFloat(p.volume.toFixed(2)) // Coluna atualizada!
+            }));
+            
+            // Usa a biblioteca XLSX para criar a planilha
+            const worksheet = XLSX.utils.json_to_sheet(dadosPlanilha);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Estoque Atualizado");
+            
+            const dataHoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
+            XLSX.writeFile(workbook, `Controle_Estoque_Origens_${dataHoje}.xlsx`);
+        }
+
+        function calcularAreaTalhoesRec() {
+            const selectTalhoes = document.getElementById('rec_talhoes');
+            const selecionados = Array.from(selectTalhoes.selectedOptions);
+            
+            let areaTotal = 0;
+            selecionados.forEach(opt => {
+                areaTotal += parseFloat(opt.dataset.area) || 0;
+            });
+            
+            document.getElementById('rec_area').value = areaTotal > 0 ? areaTotal.toFixed(2) : '';
+            recalcularTodosProdutosRec(); // Se a área mudar, muda o total de calda e veneno!
+        }
+
+        function importarTalhoesExcel(inputEl) {
+            if (!inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet);
+                    
+                    const selectTalhoes = document.getElementById('rec_talhoes');
+                    selectTalhoes.innerHTML = ''; // Limpa a lista atual
+                    
+                    let count = 0;
+                    rows.forEach(r => {
+                        // Aceita vários nomes de colunas possíveis para facilitar
+                        const nome = r['TALHÃO'] || r['TALHAO'] || r['NOME'] || r['LOTE'] || r['TALHÃO/ÁREA'] || '';
+                        const area = parseFloat(r['ÁREA'] || r['AREA'] || r['HA'] || r['HECTARES'] || 0);
+                        
+                        if (nome) {
+                            const opt = document.createElement('option');
+                            opt.value = nome;
+                            opt.text = nome + ' (' + area + ' ha)';
+                            opt.dataset.area = area;
+                            opt.selected = true; // Seleciona automaticamente o que for importado
+                            selectTalhoes.appendChild(opt);
+                            count++;
+                        }
+                    });
+
+                    // Atualiza os cálculos da tela após importar
+                    if (count > 0 && typeof calcularAreaTalhoesRec === 'function') {
+                        calcularAreaTalhoesRec();
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao ler a planilha de talhões.");
+                }
+            };
+            
+            if (file) {
+                reader.readAsBinaryString(file);
+            }
+        }
+        
+        function recalcularTodosProdutosRec() {
+            // Função para forçar a atualização de todas as linhas de produtos caso a área mude
+            document.querySelectorAll('[id^="rec-linha-"]').forEach(linha => {
+                const id = linha.id.replace('rec-linha-', '');
+                if (typeof calcularTotalRec === 'function') {
+                    calcularTotalRec(id);
+                }
+            });
+        }
+        
+        
+      // =========================================================================
+        // MEMÓRIA INTELIGENTE DE CLIENTES E TALHÕES (LOCALSTORAGE)
+        // =========================================================================
+        function salvarMemoriaRecomendacao() {
+            const produtor = document.getElementById('rec_produtor').value.trim();
+            const fazenda = document.getElementById('rec_fazenda').value.trim();
+            const selectTalhoes = document.getElementById('rec_talhoes');
+            
+            // Só salva se tiver produtor, fazenda e se tiver talhões de verdade importados
+            if (!produtor || !fazenda || selectTalhoes.options.length === 0 || selectTalhoes.options[0].disabled) return;
+
+            let talhoes = [];
+            for (let i = 0; i < selectTalhoes.options.length; i++) {
+                talhoes.push({
+                    nome: selectTalhoes.options[i].value,
+                    area: selectTalhoes.options[i].dataset.area,
+                    texto: selectTalhoes.options[i].text
+                });
+            }
+
+            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
+            
+            // Remove o antigo se já existir (para atualizar com os novos talhões se você importou outro excel)
+            memoria = memoria.filter(m => !(m.produtor === produtor && m.fazenda === fazenda));
+            memoria.push({ produtor, fazenda, talhoes });
+            
+            localStorage.setItem('origens_clientes_memoria', JSON.stringify(memoria));
+            atualizarDatalistProdutores();
+        }
+
+        function atualizarDatalistProdutores() {
+            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
+            const produtoresUnicos = [...new Set(memoria.map(m => m.produtor))];
+            const datalistProd = document.getElementById('lista-produtores');
+            if(datalistProd) datalistProd.innerHTML = produtoresUnicos.map(p => `<option value="${p}">`).join('');
+        }
+
+        function carregarFazendasMemoria() {
+            const produtor = document.getElementById('rec_produtor').value;
+            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
+            const fazendas = memoria.filter(m => m.produtor === produtor).map(m => m.fazenda);
+            
+            const datalistFaz = document.getElementById('lista-fazendas');
+            if(datalistFaz) datalistFaz.innerHTML = fazendas.map(f => `<option value="${f}">`).join('');
+        }
+
+        function carregarTalhoesMemoria() {
+            const produtor = document.getElementById('rec_produtor').value;
+            const fazenda = document.getElementById('rec_fazenda').value;
+            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
+            
+            const cliente = memoria.find(m => m.produtor === produtor && m.fazenda === fazenda);
+            if (cliente && cliente.talhoes && cliente.talhoes.length > 0) {
+                const selectTalhoes = document.getElementById('rec_talhoes');
+                selectTalhoes.innerHTML = '';
+                cliente.talhoes.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.nome;
+                    opt.dataset.area = t.area;
+                    opt.text = t.texto;
+                    selectTalhoes.appendChild(opt);
+                });
+                
+                // Prepara a área para a nova recomendação
+                document.getElementById('rec_area').value = '';
+                if(typeof recalcularTodosProdutosRec === 'function') recalcularTodosProdutosRec();
+            }
+        }
+        // =========================================================================
+        // MÓDULO 6: RELATÓRIO DE VISITA TÉCNICA E TRANSCRIÇÃO DE ÁUDIO
+        // =========================================================================
+        let visitImagesArray = [];
+        let speechRecognition = null;
+        let isRecordingAudio = false;
+
+        // Controle de Abas dentro do Módulo
+        function toggleVisitView(view) {
+            if (view === 'form') {
+                document.getElementById('visit-form-view').classList.remove('hidden');
+                document.getElementById('visit-history-view').classList.add('hidden');
+            } else {
+                document.getElementById('visit-form-view').classList.add('hidden');
+                document.getElementById('visit-history-view').classList.remove('hidden');
+            }
+        }
+
+        // Popula as Safras e Talhões ao mudar a fazenda na Visita
+        function visitChangeFarm() {
+            const farmKey = document.getElementById('visit-sel-farm').value;
+            const safraSelect = document.getElementById('visit-sel-safra');
+            const talhaoSelect = document.getElementById('visit-sel-talhao');
+            
+            safraSelect.innerHTML = '<option value="2026">Safra 2026</option><option value="2025">Safra 2025</option>';
+            talhaoSelect.innerHTML = '<option value="Geral">Visita Geral (Toda a Fazenda)</option>';
+
+            const farmObj = farmsDatabase[farmKey];
+            if (farmObj && farmObj.geojson && farmObj.geojson.features) {
+                let talhoesSet = new Set();
+                farmObj.geojson.features.forEach(f => {
+                    if (f.properties && f.properties.Talhao) talhoesSet.add(String(f.properties.Talhao));
+                });
+                Array.from(talhoesSet).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(t => {
+                    talhaoSelect.innerHTML += `<option value="${t}">Talhão ${t}</option>`;
+                });
+            }
+        }
+
+        // Transcrição de Áudio Nativa (Speech-to-Text do Navegador)
+        function toggleIAAudioTranscription() {
+            const btnText = document.getElementById('txt-mic-ia');
+            const btnIcon = document.querySelector('#btn-mic-ia i');
+            const textArea = document.getElementById('visit-report-text');
+
+            if (isRecordingAudio) {
+                if (speechRecognition) speechRecognition.stop();
+                isRecordingAudio = false;
+                btnText.innerText = "Gravar Áudio (Transcrição IA)";
+                btnIcon.className = "fa-solid fa-microphone";
+                document.getElementById('btn-mic-ia').classList.replace('bg-red-100', 'bg-indigo-100');
+                document.getElementById('btn-mic-ia').classList.replace('text-red-700', 'text-indigo-700');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("O seu navegador não suporta transcrição de áudio por IA. Recomendamos o uso do Google Chrome.");
+                return;
+            }
+
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.lang = 'pt-BR';
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = true;
+
+            speechRecognition.onstart = function() {
+                isRecordingAudio = true;
+                btnText.innerText = "Gravando... (Clique para parar)";
+                btnIcon.className = "fa-solid fa-stop";
+                document.getElementById('btn-mic-ia').classList.replace('bg-indigo-100', 'bg-red-100');
+                document.getElementById('btn-mic-ia').classList.replace('text-indigo-700', 'text-red-700');
+            };
+
+            speechRecognition.onresult = function(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript + '. ';
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                if (finalTranscript) {
+                    textArea.value = (textArea.value + '\n' + finalTranscript).trim();
+                }
+            };
+
+            speechRecognition.onerror = function(event) {
+                console.error("Erro na gravação de áudio:", event.error);
+                toggleIAAudioTranscription(); // Para e reseta o botão
+            };
+
+            speechRecognition.start();
+        }
+
+        // Lida com o Upload de Imagens convertendo para Base64
+        function handleVisitImagesUpload(inputEl) {
+            if (!inputEl.files) return;
+            const container = document.getElementById('visit-images-preview');
+            
+            Array.from(inputEl.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Str = e.target.result;
+                    visitImagesArray.push(base64Str);
+                    
+                    const imgDiv = document.createElement('div');
+                    imgDiv.className = "relative w-20 h-20 rounded-lg overflow-hidden border border-slate-300 shadow-sm";
+                    imgDiv.innerHTML = `
+                        <img src="${base64Str}" class="object-cover w-full h-full">
+                        <button onclick="removeVisitImage(this, '${base64Str}')" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                    container.appendChild(imgDiv);
+                };
+                reader.readAsDataURL(file);
+            });
+            inputEl.value = '';
+        }
+
+        function removeVisitImage(btnEl, base64Str) {
+            visitImagesArray = visitImagesArray.filter(img => img !== base64Str);
+            btnEl.parentElement.remove();
+        }
+
+        // Salvar Relatório no Firebase e Gerar PDF
+        async function saveAndGenerateVisitReport() {
+            const farmKey = document.getElementById('visit-sel-farm').value;
+            const farmInfo = farmsDatabase[farmKey];
+            if (!farmInfo) { alert("Selecione a Fazenda!"); return; }
+
+            const produtor = document.getElementById('visit-sel-producer').value;
+            const safra = document.getElementById('visit-sel-safra').value;
+            const talhao = document.getElementById('visit-sel-talhao').value;
+            const texto = document.getElementById('visit-report-text').value.trim();
+
+            if (!texto) { alert("O relatório não pode estar vazio."); return; }
+
+            // Gera o HTML do PDF
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const consNome = currentUser ? (currentUser.displayName || currentUser.email) : 'Consultor Responsável';
+
+            let imagesHtml = '';
+            if (visitImagesArray.length > 0) {
+                imagesHtml = `<h3 style="font-size: 14px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-top: 20px;">REGISTRO FOTOGRÁFICO</h3><div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">`;
+                visitImagesArray.forEach(img => {
+                    imagesHtml += `<img src="${img}" style="width: 200px; height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;">`;
+                });
+                imagesHtml += `</div>`;
+            }
+
+            let template = `
+                <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white;">
+                    <div style="border-bottom: 2px solid #0891b2; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h1 style="color: #0891b2; margin: 0; font-size: 22px; font-weight: 900;">RELATÓRIO DE VISITA TÉCNICA</h1>
+                            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 11px; font-weight: bold;">ORIGENS PARCERIAS AGRÍCOLAS | DATA: ${dataHoje}</p>
+                        </div>
+                    </div>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                            <tr>
+                                <td style="padding: 4px; width: 50%;"><b>Produtor:</b> ${produtor}</td>
+                                <td style="padding: 4px; width: 50%;"><b>Fazenda:</b> ${farmInfo.name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px;"><b>Safra:</b> ${safra}</td>
+                                <td style="padding: 4px;"><b>Local Avaliado:</b> ${talhao !== 'Geral' ? 'Talhão ' + talhao : talhao}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <h3 style="font-size: 14px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">OBSERVAÇÕES E RECOMENDAÇÕES</h3>
+                    <p style="font-size: 12px; color: #334155; white-space: pre-wrap; line-height: 1.6;">${texto}</p>
+                    ${imagesHtml}
+                    <div style="margin-top: 50px; text-align: center;">
+                        <div style="width: 250px; border-top: 1px solid #000; margin: 0 auto; padding-top: 5px;">
+                            <p style="margin: 0; font-size: 11px; font-weight: bold;">${consNome}</p>
+                            <p style="margin: 0; font-size: 9px; color: #64748b;">Responsável Técnico</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Exportar e Salvar
+            const opt = {
+                margin: 0,
+                filename: `RVT_${farmInfo.name.replace(/\s+/g, '_')}_${dataHoje.replace(/\//g, '-')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = template;
+
+            // Salvar no Banco
+            try {
+                // Para não estourar o banco com PDFs nativos pesados, salvamos os metadados. O PDF é gerado on-the-fly pelo Client ou salvo em Storage se tivessem Firebase Storage ativo. 
+                // Aqui salvamos o registro textual no Firestore para histórico visual
+                const record = {
+                    farmId: farmKey,
+                    farmName: farmInfo.name,
+                    producer: produtor,
+                    safra: safra,
+                    talhao: talhao,
+                    texto: texto,
+                    consultor: consNome,
+                    createdAt: new Date().toISOString()
+                };
+                await db.collection("visit_reports").add(record);
+                
+                // Gera o PDF visualmente
+                html2pdf().set(opt).from(tempDiv).save();
+
+                alert("Relatório de Visita salvo e PDF gerado com sucesso!");
+                document.getElementById('visit-report-text').value = '';
+                document.getElementById('visit-images-preview').innerHTML = '';
+                visitImagesArray = [];
+                toggleVisitView('history');
+                loadVisitHistory();
+
+            } catch (error) {
+                alert("Erro ao salvar o relatório: " + error.message);
+            }
+        }
+
+        async function loadVisitHistory() {
+    const tbody = document.getElementById('visit-table-body');
+    if(tbody) tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-semibold">Carregando histórico...</td></tr>`;
+    
+    try {
+        const snapshot = await db.collection("visit_reports").orderBy("createdAt", "desc").get();
+        let rowsHtml = '';
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            
+            // FILTRO DE SEGURANÇA: Só exibe a fazenda se o usuário for admin ou tiver permissão explícita nela
+            if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
+                if (!currentUserAllowedFarms.includes(d.farmId)) {
+                    return; // Pula este relatório e não mostra na tabela
+                }
+            }
+
+            const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
+            rowsHtml += `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 font-semibold text-slate-700">${dataFormatada}</td>
+                    <td class="p-3"><b class="text-slate-900 block">${d.farmName}</b><span class="text-[10px] text-cyan-700 font-bold">${d.producer}</span></td>
+                    <td class="p-3 text-slate-600">Safra ${d.safra} | ${d.talhao !== 'Geral' ? 'T.' + d.talhao : d.talhao}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="viewVisitReport('${doc.id}')" class="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-eye mr-1"></i>Ler</button>
+                        <button onclick="baixarPdfHistoricoVisita('${doc.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
+                    </td>
+                </tr>
+            `;
+        });
+        if(tbody) tbody.innerHTML = rowsHtml || `<tr><td colspan="4" class="p-6 text-center text-slate-500 italic">Nenhum relatório encontrado para suas fazendas.</td></tr>`;
+    } catch (err) {
+        if(tbody) tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-red-500">Erro ao carregar o histórico.</td></tr>`;
+        console.error(err);
+    }
+}
+
+        async function viewVisitReport(docId) {
+            try {
+                const doc = await db.collection("visit_reports").doc(docId).get();
+                if (doc.exists) {
+                    const d = doc.data();
+                    const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
+                    // Exibe os dados em um Alert bonito ou modal. (Usaremos alert estruturado por simplicidade, ou você pode plugar um modal se já tiver).
+                    alert(`📋 RELATÓRIO DE VISITA (${dataFormatada})\n\n📍 Fazenda: ${d.farmName} (${d.producer})\n🌱 Safra: ${d.safra} | Local: ${d.talhao}\n👨‍🌾 Consultor: ${d.consultor}\n\n📝 RELATO:\n${d.texto}`);
+                }
+            } catch (e) {
+                alert("Erro ao abrir relatório.");
+            }
+        }
+
+        async function baixarPdfHistoricoVisita(docId) {
+    try {
+        // Busca os dados do Firebase
+        const doc = await db.collection("visit_reports").doc(docId).get();
+        if (!doc.exists) {
+            alert("Relatório não encontrado no banco de dados.");
+            return;
+        }
+        
+        const d = doc.data();
+        const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
+
+        // Monta o mesmo Layout do Relatório original
+        const template = `
+            <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white;">
+                <div style="border-bottom: 2px solid #0891b2; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 style="color: #0891b2; margin: 0; font-size: 22px; font-weight: 900;">RELATÓRIO DE VISITA TÉCNICA</h1>
+                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 11px; font-weight: bold;">ORIGENS PARCERIAS AGRÍCOLAS | DATA: ${dataFormatada}</p>
+                    </div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                        <tr>
+                            <td style="padding: 4px; width: 50%;"><b>Produtor:</b> ${d.producer}</td>
+                            <td style="padding: 4px; width: 50%;"><b>Fazenda:</b> ${d.farmName}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 4px;"><b>Safra:</b> ${d.safra}</td>
+                            <td style="padding: 4px;"><b>Local Avaliado:</b> ${d.talhao !== 'Geral' ? 'Talhão ' + d.talhao : d.talhao}</td>
+                        </tr>
+                    </table>
+                </div>
+                <h3 style="font-size: 14px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">OBSERVAÇÕES E RECOMENDAÇÕES</h3>
+                <p style="font-size: 12px; color: #334155; white-space: pre-wrap; line-height: 1.6;">${d.texto}</p>
+                <div style="margin-top: 50px; text-align: center;">
+                    <div style="width: 250px; border-top: 1px solid #000; margin: 0 auto; padding-top: 5px;">
+                        <p style="margin: 0; font-size: 11px; font-weight: bold;">${d.consultor}</p>
+                        <p style="margin: 0; font-size: 9px; color: #64748b;">Responsável Técnico</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Transforma o texto temporário em um elemento do navegador
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = template;
+
+        // Configurações do gerador de PDF
+        const opt = {
+            margin: 0,
+            filename: `RVT_${d.farmName.replace(/\s+/g, '_')}_${dataFormatada.replace(/\//g, '-')}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Roda a mágica e baixa o arquivo!
+        html2pdf().set(opt).from(tempDiv).save();
+
+    } catch (e) {
+        console.error("Erro ao gerar PDF:", e);
+        alert("Ocorreu um erro ao baixar o PDF.");
+    }
+}
+        
+        // Inicia a lista de produtores quando carregar a página
+        setTimeout(atualizarDatalistProdutores, 500);  
+        // =========================================================================
+        // ATUALIZAÇÃO FORÇADA DOS FILTROS (MAPA, VRATE, SEMENTES E VISITA)
+        // =========================================================================
+        function populateProducerSelector() {
+            const selects = ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer'];
+            let currentVal = 'all';
+            const mainSelect = document.getElementById('sel-producer');
+            if (mainSelect && mainSelect.value) currentVal = mainSelect.value;
+
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<option value="all">Todos os Produtores</option>';
+            });
+
+            let producersSet = new Set();
+            let keysToDisplay = Object.keys(farmsDatabase);
+
+            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
+                keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
+            }
+
+            keysToDisplay.forEach(key => {
+                const farm = farmsDatabase[key];
+                if (farm && farm.producer) producersSet.add(farm.producer);
+            });
+
+            const sortedProducers = Array.from(producersSet).sort();
+            sortedProducers.forEach(p => {
+                selects.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML += `<option value="${p}">${p}</option>`;
+                });
+            });
+
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = currentVal;
+            });
+        }
+
+        function populateFarmSelector() {
+            populateProducerSelector();
+            const selects = ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'];
+            
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
+
+            let keysToDisplay = Object.keys(farmsDatabase);
+            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
+                keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
+            }
+
+            const mainProdSelect = document.getElementById('sel-producer');
+            const selectedProducer = mainProdSelect ? mainProdSelect.value : 'all';
+
+            keysToDisplay.forEach(key => {
+                if (farmsDatabase[key]) {
+                    const farm = farmsDatabase[key];
+                    if (selectedProducer === 'all' || farm.producer === selectedProducer) {
+                        selects.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) el.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
+                        });
+                    }
+                }
+            });
+
+            const checkboxContainer = document.getElementById('new-farm-checkboxes');
+            if (checkboxContainer) {
+                checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                        <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
+                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? '(' + farmsDatabase[k].producer + ')' : ''} - ${farmsDatabase[k].location}</span>
+                    </label>
+                `).join('');
+            }
+
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
+        }
+
+        function changeActiveProducer(sourceSelectId) {
+            const selectedVal = document.getElementById(sourceSelectId).value;
+            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value !== selectedVal) el.value = selectedVal;
+            });
+            populateFarmSelector();
+            changeActiveFarm('sel-farm');
+        }
+
+        function changeActiveFarm(sourceSelectId) {
+            const selectedVal = document.getElementById(sourceSelectId).value;
+            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value !== selectedVal) el.value = selectedVal;
+            });
+
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
+
+            if (document.getElementById('content-seeds') && !document.getElementById('content-seeds').classList.contains('hidden')) {
+                if(typeof seedsChangeFarm === 'function') seedsChangeFarm();
+            } else if (document.getElementById('content-vrate') && !document.getElementById('content-vrate').classList.contains('hidden')) {
+                if(typeof vrateChangeFarm === 'function') vrateChangeFarm();
+            } else if (document.getElementById('content-maps') && !document.getElementById('content-maps').classList.contains('hidden')) {
+                if(typeof updateGISMap === 'function') updateGISMap();
+            }
+        }
+        // =========================================================================
+        // UPLOAD E TRANSCRIÇÃO DE ÁUDIO VIA API - PADRÃO OFICIAL GOOGLE (AQ.)
+        // =========================================================================
+        async function handleAudioFileUpload(inputEl) {
+            if (!inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const textArea = document.getElementById('visit-report-text');
+
+            const textoAnterior = textArea.value;
+            textArea.value = "Enviando áudio para a IA processar... Aguarde.\n";
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            
+            reader.onload = async function (e) {
+                const base64Audio = e.target.result.split(',')[1];
+                const mimeType = file.type;
+
+                try {
+                    // Chave já preenchida para você:
+                    const url = "https://api-gemini.tiagoritterm.workers.dev";
+
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: "Você é um assistente agronômico. Transcreva este áudio ditado por um consultor no campo e organize as ideias em um texto claro e profissional para um relatório de visita técnica." },
+                                { inline_data: { mime_type: mimeType, data: base64Audio } }
+                            ]
+                        }]
+                    };
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await response.json();
+                    
+                    if (response.ok && data.candidates) {
+                        const transcricao = data.candidates[0].content.parts[0].text;
+                        textArea.value = (textoAnterior + '\n\n' + transcricao).trim();
+                    } else {
+                        throw new Error(JSON.stringify(data));
+                    }
+
+                } catch (error) {
+                    console.error("❌ Erro na API do Gemini:", error);
+                    alert("Erro ao transcrever. Verifique a conexão ou a chave.");
+                    textArea.value = textoAnterior;
+                }
+                
+                inputEl.value = ''; 
+            };
+        }
+
+        // =========================================================================
+        // REVISÃO DE TEXTO E FORMATAÇÃO ABNT COM IA
+        // =========================================================================
+        async function revisarRelatorioIA() {
+            const textArea = document.getElementById('visit-report-text');
+            const textoBruto = textArea.value.trim();
+
+            if (!textoBruto) {
+                alert("Por favor, escreva ou grave um relatório primeiro para a IA revisar!");
+                return;
+            }
+
+            const textoAnterior = textArea.value;
+            textArea.value = "A IA está corrigindo e formatando seu relatório... Aguarde uns segundos. ✨\n";
+
+            try {
+                // Chave já preenchida para você:
+                const url = "https://api-gemini.tiagoritterm.workers.dev";
+
+                const payload = {
+                    contents: [{
+                        parts: [{ 
+                            text: "Você é um engenheiro agrônomo sênior e revisor de textos. Pegue o texto abaixo, corrija todos os erros de português, melhore a coesão, use vocabulário técnico e organize a estrutura nos padrões de um relatório profissional e normas da ABNT. Retorne apenas o texto revisado:\n\n" + textoBruto 
+                        }]
+                    }]
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.candidates) {
+                    textArea.value = data.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error(JSON.stringify(data));
+                }
+
+            } catch (error) {
+                console.error("Erro na API do Gemini:", error);
+                alert("Ocorreu um erro ao revisar o texto. O texto original foi restaurado.");
+                textArea.value = textoAnterior;
+            }
         }
     </script>
 </body>
