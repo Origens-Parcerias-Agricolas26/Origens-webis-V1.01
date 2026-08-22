@@ -640,116 +640,212 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- MÓDULO 4: ACOMPANHAMENTO DE AMOSTRAGEM DE SOLO -->
                 <div id="content-sampling" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
-                    <!-- Cabeçalho Módulo -->
+                    
+                    <!-- Cabeçalho Módulo com Abas -->
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
                         <div>
                             <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
                                 <i class="fa-solid fa-vial-circle-check text-blue-600"></i>
-                                <span>Acompanhamento de Amostragem de Solo</span>
+                                <span>Amostragem de Solo</span>
                             </h2>
-                            <p class="text-xs text-slate-500 mt-0.5">Status de coleta em tempo real sincronizado com a planilha do Google Sheets.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Sincronizado com Google Sheets em tempo real.</p>
                         </div>
                         
                         <div class="flex items-center gap-3">
-                            <button onclick="fetchSamplingData()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center gap-2 transition-all">
-                                <i class="fa-solid fa-rotate"></i><span>Atualizar Dados Agora</span>
+                            <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                <button id="btn-view-general" onclick="toggleSamplingView('general')" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-blue-700 shadow-sm transition-all">Visão Geral</button>
+                                <button id="btn-view-confere" onclick="toggleSamplingView('confere')" class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all bg-transparent">Auditoria (Confere)</button>
+                            </div>
+                            <button onclick="fetchSamplingData(); fetchConfereData();" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-rotate"></i><span>Sincronizar</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- CARDS DE KPI (DASHBOARD) -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                            <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 text-xl font-bold">
-                                <i class="fa-solid fa-map-location-dot"></i>
-                            </div>
-                            <div>
-                                <span class="text-[11px] font-bold uppercase text-slate-400 block">ha A COLETAR</span>
-                                <span id="kpi-ha-total" class="text-xl font-black text-slate-900">0,00 ha</span>
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                            <div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 text-xl font-bold">
-                                <i class="fa-solid fa-circle-check"></i>
-                            </div>
-                            <div>
-                                <span class="text-[11px] font-bold uppercase text-slate-400 block">ha COLETADOS</span>
-                                <span id="kpi-ha-coletados" class="text-xl font-black text-emerald-600">0,00 ha</span>
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                            <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700 text-xl font-bold">
-                                <i class="fa-solid fa-clock"></i>
-                            </div>
-                            <div>
-                                <span class="text-[11px] font-bold uppercase text-slate-400 block">ha PENDENTES</span>
-                                <span id="kpi-ha-pendentes" class="text-xl font-black text-amber-600">0,00 ha</span>
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 text-xl font-bold">
-                                <i class="fa-solid fa-chart-pie"></i>
-                            </div>
-                            <div>
-                                <span class="text-[11px] font-bold uppercase text-slate-400 block">PROGRESSO GERAL</span>
-                                <span id="kpi-pct-geral" class="text-xl font-black text-blue-600">0,00%</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BARRA DE PROGRESSO GERAL -->
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                        <div class="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>Avanço Físico das Amostras</span>
-                            <span id="sampling-progress-text">0% Concluído</span>
-                        </div>
-                        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
-                            <div id="sampling-progress-bar" class="bg-gradient-to-r from-emerald-500 to-blue-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                    </div>
-
-                    <!-- FILTROS & TABELA DE RELATÓRIO -->
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-4">
-                        <div class="flex flex-wrap gap-4 items-center justify-between">
-                            <div class="flex gap-3 items-center flex-1 max-w-2xl">
-                                <div class="flex-1">
-                                    <input type="text" id="sampling-search" oninput="renderSamplingTable()" placeholder="Buscar por Fazenda ou Solicitante..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500">
+                    <!-- ================= VISÃO 1: GERAL ================= -->
+                    <div id="sampling-general-view" class="space-y-4 flex-1 flex flex-col">
+                        <!-- CARDS DE KPI -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 text-xl font-bold"><i class="fa-solid fa-map-location-dot"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">ha A COLETAR</span>
+                                    <span id="kpi-ha-total" class="text-xl font-black text-slate-900">0,00 ha</span>
                                 </div>
-                                <select id="sampling-filter-solicitante" onchange="renderSamplingTable()" class="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800">
-                                    <option value="all">Todos os Solicitantes</option>
-                                </select>
                             </div>
-                            <span id="sampling-last-update" class="text-[11px] font-semibold text-slate-400">Última atualização: ---</span>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 text-xl font-bold"><i class="fa-solid fa-circle-check"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">ha COLETADOS</span>
+                                    <span id="kpi-ha-coletados" class="text-xl font-black text-emerald-600">0,00 ha</span>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700 text-xl font-bold"><i class="fa-solid fa-clock"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">ha PENDENTES</span>
+                                    <span id="kpi-ha-pendentes" class="text-xl font-black text-amber-600">0,00 ha</span>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 text-xl font-bold"><i class="fa-solid fa-chart-pie"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">PROGRESSO GERAL</span>
+                                    <span id="kpi-pct-geral" class="text-xl font-black text-blue-600">0,00%</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- TABELA ESTILIZADA -->
-                        <div class="overflow-x-auto flex-1 border border-slate-200 rounded-xl">
-                            <table class="w-full text-left border-collapse text-xs">
-                                <thead>
-                                    <tr class="bg-slate-900 text-white uppercase text-[11px] font-black tracking-wider">
-                                        <th class="p-3">Solicitante</th>
-                                        <th class="p-3">Fazenda</th>
-                                        <th class="p-3 text-right">ha a Coletar</th>
-                                        <th class="p-3 text-right">ha Coletados</th>
-                                        <th class="p-3 text-right">ha Pendentes</th>
-                                        <th class="p-3 text-center">% Coletados</th>
-                                        <th class="p-3 text-center">% Pendentes</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="sampling-table-body" class="divide-y divide-slate-200 font-medium">
-                                    <tr><td colspan="7" class="p-6 text-center text-slate-400 font-semibold italic">Carregando dados da planilha online...</td></tr>
-                                </tbody>
-                            </table>
+                        <!-- BARRA DE PROGRESSO GERAL -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                            <div class="flex justify-between items-center text-xs font-bold text-slate-700">
+                                <span>Avanço Físico das Amostras</span>
+                                <span id="sampling-progress-text">0% Concluído</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+                                <div id="sampling-progress-bar" class="bg-gradient-to-r from-emerald-500 to-blue-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- FILTROS & TABELA DE RELATÓRIO -->
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-4">
+                            <div class="flex flex-wrap gap-4 items-center justify-between">
+                                <div class="flex gap-3 items-center flex-1 max-w-2xl">
+                                    <div class="flex-1">
+                                        <input type="text" id="sampling-search" oninput="renderSamplingTable()" placeholder="Buscar por Fazenda ou Solicitante..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500">
+                                    </div>
+                                    <select id="sampling-filter-solicitante" onchange="renderSamplingTable()" class="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800">
+                                        <option value="all">Todos os Solicitantes</option>
+                                    </select>
+                                </div>
+                                <span id="sampling-last-update" class="text-[11px] font-semibold text-slate-400">Última atualização: ---</span>
+                            </div>
+                            <div class="overflow-x-auto flex-1 border border-slate-200 rounded-xl">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr class="bg-slate-900 text-white uppercase text-[11px] font-black tracking-wider">
+                                            <th class="p-3">Solicitante</th><th class="p-3">Fazenda</th><th class="p-3 text-right">ha a Coletar</th><th class="p-3 text-right">ha Coletados</th><th class="p-3 text-right">ha Pendentes</th><th class="p-3 text-center">% Coletados</th><th class="p-3 text-center">% Pendentes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sampling-table-body" class="divide-y divide-slate-200 font-medium">
+                                        <tr><td colspan="7" class="p-6 text-center text-slate-400 font-semibold italic">Carregando dados da planilha online...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ================= VISÃO 2: CONFERE / AUDITORIA ================= -->
+                    <div id="sampling-confere-view" class="hidden space-y-4 flex-1 flex flex-col">
+                        
+                        <!-- Filtros Inteligentes Multi-seleção com Dropdowns -->
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                            <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                                <span class="text-xs font-extrabold text-slate-800"><i class="fa-solid fa-filter text-blue-600 mr-1"></i>Filtros Inteligentes (Multi-seleção)</span>
+                                <button onclick="clearConfereFilters()" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-all shadow-sm">Limpar Filtros</button>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                
+                                <!-- Dropdown Equipe -->
+                                <div class="relative w-full" id="box-dropdown-equipe">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Equipe de Coleta</label>
+                                    <button type="button" onclick="toggleConfereDropdown('dropdown-equipe')" class="w-full bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 flex justify-between items-center transition-all shadow-sm">
+                                        <span id="title-equipe" class="truncate pointer-events-none">Todas as Equipes</span>
+                                        <i class="fa-solid fa-chevron-down text-slate-500 pointer-events-none"></i>
+                                    </button>
+                                    <div id="dropdown-equipe" class="confere-dropdown hidden absolute z-[100] left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                                        <div id="chk-confere-equipe" class="p-1 space-y-0.5"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dropdown Data -->
+                                <div class="relative w-full" id="box-dropdown-data">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data da Coleta</label>
+                                    <button type="button" onclick="toggleConfereDropdown('dropdown-data')" class="w-full bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 flex justify-between items-center transition-all shadow-sm">
+                                        <span id="title-data" class="truncate pointer-events-none">Todas as Datas</span>
+                                        <i class="fa-solid fa-chevron-down text-slate-500 pointer-events-none"></i>
+                                    </button>
+                                    <div id="dropdown-data" class="confere-dropdown hidden absolute z-[100] left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                                        <div id="chk-confere-data" class="p-1 space-y-0.5"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dropdown Produtor -->
+                                <div class="relative w-full" id="box-dropdown-produtor">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Solicitante</label>
+                                    <button type="button" onclick="toggleConfereDropdown('dropdown-produtor')" class="w-full bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 flex justify-between items-center transition-all shadow-sm">
+                                        <span id="title-produtor" class="truncate pointer-events-none">Todos os Solicitantes</span>
+                                        <i class="fa-solid fa-chevron-down text-slate-500 pointer-events-none"></i>
+                                    </button>
+                                    <div id="dropdown-produtor" class="confere-dropdown hidden absolute z-[100] left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                                        <div id="chk-confere-produtor" class="p-1 space-y-0.5"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dropdown Fazenda -->
+                                <div class="relative w-full" id="box-dropdown-fazenda">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fazenda</label>
+                                    <button type="button" onclick="toggleConfereDropdown('dropdown-fazenda')" class="w-full bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 flex justify-between items-center transition-all shadow-sm">
+                                        <span id="title-fazenda" class="truncate pointer-events-none">Todas as Fazendas</span>
+                                        <i class="fa-solid fa-chevron-down text-slate-500 pointer-events-none"></i>
+                                    </button>
+                                    <div id="dropdown-fazenda" class="confere-dropdown hidden absolute z-[100] left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                                        <div id="chk-confere-fazenda" class="p-1 space-y-0.5"></div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                        <!-- KPIs Confere -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 text-xl font-bold"><i class="fa-solid fa-map-marked-alt"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">Área Coletada no Filtro</span>
+                                    <span id="kpi-confere-area" class="text-xl font-black text-blue-700">0,00 ha</span>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 text-xl font-bold"><i class="fa-solid fa-location-dot"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">Tamanho da Amostra</span>
+                                    <span id="kpi-confere-amostra" class="text-xl font-black text-emerald-600">0 ha / pt</span>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-700 text-xl font-bold"><i class="fa-solid fa-list-check"></i></div>
+                                <div>
+                                    <span class="text-[11px] font-bold uppercase text-slate-400 block">Total de Entregas (Linhas)</span>
+                                    <span id="kpi-confere-linhas" class="text-xl font-black text-purple-600">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabela Confere -->
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col">
+                            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr class="bg-slate-900 text-white uppercase text-[10px] font-black tracking-wider">
+                                            <th class="p-3">Data</th>
+                                            <th class="p-3">Equipe</th>
+                                            <th class="p-3">Solicitante</th>
+                                            <th class="p-3">Fazenda</th>
+                                            <th class="p-3 text-center">NCB / AM_PR</th>
+                                            <th class="p-3 text-right">Área (ha)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="confere-table-body" class="divide-y divide-slate-200 font-medium">
+                                        <tr><td colspan="6" class="p-6 text-center text-slate-400 font-semibold italic">Aguardando sincronização com a aba Confere...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
-
                 <!-- GESTÃO DE ACESSOS -->
 
                 <div id="content-recommendation" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
@@ -6030,6 +6126,321 @@
                 alert("Ocorreu um erro ao revisar o texto. O texto original foi restaurado.");
                 textArea.value = textoAnterior;
             }
+        }        
+        // =========================================================================
+        // LÓGICA DO BI: AUDITORIA / CONFERE DE AMOSTRAGEM COM FILTROS EM CASCATA
+        // =========================================================================
+        const GOOGLE_SHEETS_CONFERE_URL = "https://docs.google.com/spreadsheets/d/1txbBbeQrZEjEP2iJae0Wr66Q0977r4nfiQcDNx1WoZ4/export?format=csv&gid=1908189361";
+        let confereRawRows = [];
+
+        function toggleSamplingView(view) {
+            const genView = document.getElementById('sampling-general-view');
+            const confView = document.getElementById('sampling-confere-view');
+            const btnGen = document.getElementById('btn-view-general');
+            const btnConf = document.getElementById('btn-view-confere');
+
+            if (view === 'general') {
+                genView.classList.remove('hidden');
+                confView.classList.add('hidden');
+                btnGen.className = "px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-blue-700 shadow-sm transition-all";
+                btnConf.className = "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all bg-transparent";
+            } else {
+                genView.classList.add('hidden');
+                confView.classList.remove('hidden');
+                btnGen.className = "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all bg-transparent";
+                btnConf.className = "px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-blue-700 shadow-sm transition-all";
+                
+                if (confereRawRows.length === 0) fetchConfereData();
+            }
+        }
+
+        async function fetchConfereData() {
+            const tbody = document.getElementById('confere-table-body');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Sincronizando Auditoria com o Google Sheets...</td></tr>`;
+
+            try {
+                const response = await fetch(GOOGLE_SHEETS_CONFERE_URL);
+                const csvText = await response.text();
+                parseConfereCSV(csvText);
+            } catch (error) {
+                console.error("Erro ao buscar aba Confere:", error);
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-600 font-bold">Erro ao carregar a Auditoria. Verifique sua conexão.</td></tr>`;
+            }
+        }
+
+        function parseConfereCSV(csvText) {
+            const lines = csvText.split(/\r\n|\n/);
+            confereRawRows = [];
+            if (lines.length < 2) return;
+
+            let headerIdx = 0;
+            let headerRow = [];
+            for (let i = 0; i < Math.min(5, lines.length); i++) {
+                const tempCols = lines[i].split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim().toUpperCase());
+                if (tempCols.includes('EQUIPE DE COLETA') || tempCols.includes('DATA')) {
+                    headerRow = tempCols;
+                    headerIdx = i;
+                    break;
+                }
+            }
+
+            const iEquipe = headerRow.findIndex(h => h.includes('EQUIPE'));
+            const iData = headerRow.findIndex(h => h === 'DATA');
+            const iSol = headerRow.findIndex(h => h.includes('SOLICITANTE') || h.includes('PRODUTOR'));
+            const iFaz = headerRow.findIndex(h => h.includes('FAZENDA') || h.includes('PROPRIEDADE'));
+            const iArea = headerRow.findIndex(h => h.includes('ÁREA') || h.includes('AREA') || h === 'HA');
+            const iNcb = headerRow.findIndex(h => h === 'NCB');
+            const iAmPr = headerRow.findIndex(h => h === 'AM_PR');
+
+            for (let i = headerIdx + 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+
+                const equipe = iEquipe > -1 ? cols[iEquipe] : '';
+                const dataStr = iData > -1 ? cols[iData] : '';
+                const areaStr = iArea > -1 ? cols[iArea] : '0';
+                
+                if (equipe.toUpperCase().includes('TOTAL')) continue; // Pula linha de totais
+                if (!equipe && !dataStr && parseNumber(areaStr) === 0) continue; 
+
+                confereRawRows.push({
+                    equipe: equipe || 'N/I',
+                    data: dataStr || 'N/I',
+                    solicitante: iSol > -1 ? cols[iSol] || 'N/I' : 'N/I',
+                    fazenda: iFaz > -1 ? cols[iFaz] || 'N/I' : 'N/I',
+                    area: parseNumber(areaStr) || 0,
+                    ncb: iNcb > -1 ? cols[iNcb] || '-' : '-',
+                    amPr: iAmPr > -1 ? cols[iAmPr] || '-' : '-'
+                });
+            }
+
+            populateConfereFilters();
+            applyConfereFilters();
+        }
+        // Abre/Fecha Dropdowns do Confere e clica fora para fechar
+        function toggleConfereDropdown(id) {
+            const el = document.getElementById(id);
+            const isHidden = el.classList.contains('hidden');
+            document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
+            if (isHidden) el.classList.remove('hidden');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#box-dropdown-equipe') && 
+                !e.target.closest('#box-dropdown-data') && 
+                !e.target.closest('#box-dropdown-produtor') && 
+                !e.target.closest('#box-dropdown-fazenda')) {
+                document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
+            }
+        });
+
+        // =========================================================================
+        // CONTROLE VISUAL: ABRIR/FECHAR DROPDOWNS DO CONFERE
+        // =========================================================================
+        function toggleConfereDropdown(id) {
+            const el = document.getElementById(id);
+            const isHidden = el.classList.contains('hidden');
+            document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
+            if (isHidden) el.classList.remove('hidden');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#box-dropdown-equipe') && 
+                !e.target.closest('#box-dropdown-data') && 
+                !e.target.closest('#box-dropdown-produtor') && 
+                !e.target.closest('#box-dropdown-fazenda')) {
+                document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
+            }
+        });
+        
+        function populateConfereFilters() {
+            const equipes = new Set(), datas = new Set(), produtores = new Set(), fazendas = new Set();
+            
+            confereRawRows.forEach(r => {
+                if (r.equipe !== 'N/I') equipes.add(r.equipe);
+                if (r.data !== 'N/I') datas.add(r.data);
+                if (r.solicitante !== 'N/I') produtores.add(r.solicitante);
+                if (r.fazenda !== 'N/I') fazendas.add(r.fazenda);
+            });
+
+            const buildCheckboxes = (set, className, isDate = false) => {
+                let arr = Array.from(set);
+                if (isDate) {
+                    arr.sort((a, b) => {
+                        const pa = a.split('/'); const pb = b.split('/');
+                        if (pa.length === 3 && pb.length === 3) return new Date(pb[2], pb[1]-1, pb[0]) - new Date(pa[2], pa[1]-1, pa[0]);
+                        return b.localeCompare(a);
+                    });
+                } else {
+                    arr.sort();
+                }
+                return arr.map(v => `
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 p-2 hover:bg-slate-100 rounded-md transition-colors w-full">
+                        <input type="checkbox" value="${v}" onchange="applyConfereFilters()" class="${className} h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500">
+                        <span class="truncate w-full">${v}</span>
+                    </label>
+                `).join('');
+            };
+
+            document.getElementById('chk-confere-equipe').innerHTML = buildCheckboxes(equipes, 'chk-equipe-item');
+            document.getElementById('chk-confere-data').innerHTML = buildCheckboxes(datas, 'chk-data-item', true);
+            document.getElementById('chk-confere-produtor').innerHTML = buildCheckboxes(produtores, 'chk-produtor-item');
+            document.getElementById('chk-confere-fazenda').innerHTML = buildCheckboxes(fazendas, 'chk-fazenda-item');
+        }
+
+        function clearConfereFilters() {
+            document.querySelectorAll('.chk-equipe-item, .chk-data-item, .chk-produtor-item, .chk-fazenda-item').forEach(c => c.checked = false);
+            applyConfereFilters();
+        }
+
+        function applyConfereFilters() {
+            let eqs = Array.from(document.querySelectorAll('.chk-equipe-item:checked')).map(c => c.value);
+            let dts = Array.from(document.querySelectorAll('.chk-data-item:checked')).map(c => c.value);
+            let prs = Array.from(document.querySelectorAll('.chk-produtor-item:checked')).map(c => c.value);
+            let fzs = Array.from(document.querySelectorAll('.chk-fazenda-item:checked')).map(c => c.value);
+
+            // Verifica se a categoria está vazia (logo, permite todas as linhas daquela categoria)
+            const isEqAll = eqs.length === 0;
+            const isDtAll = dts.length === 0;
+            const isPrAll = prs.length === 0;
+            const isFzAll = fzs.length === 0;
+
+            const validEqs = new Set(), validDts = new Set(), validPrs = new Set(), validFzs = new Set();
+
+            const filteredRows = confereRawRows.filter(r => {
+                const mEq = isEqAll || eqs.includes(r.equipe);
+                const mDt = isDtAll || dts.includes(r.data);
+                const mPr = isPrAll || prs.includes(r.solicitante);
+                const mFz = isFzAll || fzs.includes(r.fazenda);
+
+                // Permite a cascata: se uma linha atende os "outros" 3 filtros, ela aparece como opção neste
+                if (mDt && mPr && mFz) validEqs.add(r.equipe);
+                if (mEq && mPr && mFz) validDts.add(r.data);
+                if (mEq && mDt && mFz) validPrs.add(r.solicitante);
+                if (mEq && mDt && mPr) validFzs.add(r.fazenda);
+
+                return mEq && mDt && mPr && mFz;
+            });
+
+            // Oculta os checkboxes que não fazem sentido com o filtro atual
+            const updateCheckboxes = (className, validSet) => {
+                document.querySelectorAll('.' + className).forEach(chk => {
+                    if (!validSet.has(chk.value)) {
+                        chk.checked = false; 
+                        chk.parentElement.style.display = 'none'; 
+                    } else {
+                        chk.parentElement.style.display = 'flex'; 
+                    }
+                });
+            };
+
+            updateCheckboxes('chk-equipe-item', validEqs);
+            updateCheckboxes('chk-data-item', validDts);
+            updateCheckboxes('chk-produtor-item', validPrs);
+            updateCheckboxes('chk-fazenda-item', validFzs);
+
+            // Atualiza os títulos dos Dropdowns (Ex: "Todos os Produtores (19)" ou "Colorado")
+            const updateTitle = (id, arr, emptyText, listClassName) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                
+                if (arr.length === 0) {
+                    let visibleCount = 0;
+                    document.querySelectorAll('.' + listClassName).forEach(chk => {
+                        if (chk.parentElement.style.display !== 'none') visibleCount++;
+                    });
+                    el.innerText = `${emptyText} (${visibleCount})`;
+                }
+                else if (arr.length === 1) el.innerText = arr[0];
+                else el.innerText = `${arr.length} Selecionados`;
+            };
+            
+            updateTitle('title-equipe', eqs, 'Todas as Equipes', 'chk-equipe-item');
+            updateTitle('title-data', dts, 'Todas as Datas', 'chk-data-item');
+            updateTitle('title-produtor', prs, 'Todos os Solicitantes', 'chk-produtor-item');
+            updateTitle('title-fazenda', fzs, 'Todas as Fazendas', 'chk-fazenda-item');
+
+            renderConfereTable(filteredRows);
+        }
+
+        function renderConfereTable(filtered) {
+            const tbody = document.getElementById('confere-table-body');
+            if (!filtered.length) {
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-semibold italic">Nenhum registro encontrado para este cruzamento de filtros.</td></tr>`;
+                document.getElementById('kpi-confere-area').innerText = '0,00 ha';
+                document.getElementById('kpi-confere-amostra').innerText = '0,0 ha/pt';
+                document.getElementById('kpi-confere-linhas').innerText = '0';
+                return;
+            }
+
+            let totalArea = 0;
+            let pontosValidos = 0; 
+
+            tbody.innerHTML = filtered.map(r => {
+                totalArea += r.area;
+                const ncbFmt = r.ncb !== '-' ? r.ncb : '';
+                const amPrFmt = r.amPr !== '-' ? r.amPr : '';
+                const unionPts = [ncbFmt, amPrFmt].filter(x => x).join(' / ');
+                if (r.area > 0) pontosValidos++;
+
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-semibold text-slate-700">${r.data}</td>
+                        <td class="p-3 font-bold text-blue-800"><i class="fa-solid fa-users text-[10px] mr-1"></i> ${r.equipe}</td>
+                        <td class="p-3 text-slate-600">${r.solicitante}</td>
+                        <td class="p-3 font-bold text-slate-900">${r.fazenda}</td>
+                        <td class="p-3 text-center text-slate-500 font-mono">${unionPts || '-'}</td>
+                        <td class="p-3 text-right font-black text-emerald-700">${r.area.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('kpi-confere-area').innerText = `${totalArea.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ha`;
+            document.getElementById('kpi-confere-linhas').innerText = `${pontosValidos}`;
+            
+            const tamAmostra = pontosValidos > 0 ? (totalArea / pontosValidos) : 0;
+            document.getElementById('kpi-confere-amostra').innerText = `${tamAmostra.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} ha/pt`;
+        }
+
+        function renderConfereTable(filtered) {
+            const tbody = document.getElementById('confere-table-body');
+            if (!filtered.length) {
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-semibold italic">Nenhum registro encontrado para este cruzamento de filtros.</td></tr>`;
+                document.getElementById('kpi-confere-area').innerText = '0,00 ha';
+                document.getElementById('kpi-confere-amostra').innerText = '0,0 ha/pt';
+                document.getElementById('kpi-confere-linhas').innerText = '0';
+                return;
+            }
+
+            let totalArea = 0;
+            let pontosValidos = 0; 
+
+            tbody.innerHTML = filtered.map(r => {
+                totalArea += r.area;
+                const ncbFmt = r.ncb !== '-' ? r.ncb : '';
+                const amPrFmt = r.amPr !== '-' ? r.amPr : '';
+                const unionPts = [ncbFmt, amPrFmt].filter(x => x).join(' / ');
+                if (r.area > 0) pontosValidos++;
+
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-semibold text-slate-700">${r.data}</td>
+                        <td class="p-3 font-bold text-blue-800"><i class="fa-solid fa-users text-[10px] mr-1"></i> ${r.equipe}</td>
+                        <td class="p-3 text-slate-600">${r.solicitante}</td>
+                        <td class="p-3 font-bold text-slate-900">${r.fazenda}</td>
+                        <td class="p-3 text-center text-slate-500 font-mono">${unionPts || '-'}</td>
+                        <td class="p-3 text-right font-black text-emerald-700">${r.area.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('kpi-confere-area').innerText = `${totalArea.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ha`;
+            document.getElementById('kpi-confere-linhas').innerText = `${pontosValidos}`;
+            
+            const tamAmostra = pontosValidos > 0 ? (totalArea / pontosValidos) : 0;
+            document.getElementById('kpi-confere-amostra').innerText = `${tamAmostra.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} ha/pt`;
         }
     </script>
 </body>
