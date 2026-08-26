@@ -24,6 +24,8 @@
     <!-- Leaflet GIS CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Turf.js para cálculos geográficos (Área exata de Talhões) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <!-- JSZip, Shapefile Parser & XLSX Reader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
@@ -381,7 +383,7 @@
                             <div id="legend-items" class="space-y-1.5 text-xs font-semibold text-slate-700"></div>
                         </div>
                     </div>
-                </div>
+                </div> <!-- ESSA É A DIV FALTANTE QUE FECHA O MÓDULO GIS INTEIRO! -->
 
                 <!-- MÓDULO 2: TAXA VARIÁVEL & PRESCRIÇÃO -->
                 <div id="content-vrate" class="hidden h-full flex gap-6">
@@ -848,6 +850,7 @@
                 </div>
                 <!-- GESTÃO DE ACESSOS -->
 
+                <!-- MÓDULO 5: RECOMENDAÇÃO AGRONÔMICA E ESTOQUE -->
                 <div id="content-recommendation" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
                     
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -861,16 +864,22 @@
                         <div class="flex items-center gap-3">
                             <input type="file" id="input-estoque-excel" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarEstoqueExcel(this)">
                             <button onclick="document.getElementById('input-estoque-excel').click()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
-                                <i class="fa-solid fa-file-import"></i><span id="txt-btn-estoque">1. Importar Estoque</span>
+                                <i class="fa-solid fa-file-import"></i><span id="txt-btn-estoque">Importar Estoque</span>
                             </button>
                             <button onclick="baixarEstoqueAtualizado()" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
-                                <i class="fa-solid fa-file-export"></i><span>2. Baixar Estoque Atualizado</span>
+                                <i class="fa-solid fa-file-export"></i><span>Baixar Estoque</span>
+                            </button>
+                            <button onclick="toggleRecView('history'); loadRecHistory();" class="bg-cyan-100 hover:bg-cyan-200 text-cyan-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-folder-open"></i><span>Histórico</span>
+                            </button>
+                            <button onclick="toggleRecView('form')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 transition-all">
+                                <i class="fa-solid fa-pen"></i><span>Nova Rec.</span>
                             </button>
                         </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
-                        
+                    <!-- TELA 1: FORMULÁRIO DE RECOMENDAÇÃO -->
+                    <div id="rec-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                             
                             <!-- Info Básica (Dados da Aplicação) -->
@@ -882,14 +891,12 @@
                                     <div class="space-y-3">
                                         <div class="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Produtor / Cliente</label>
-                                                <input type="text" id="rec_produtor" list="lista-produtores" onchange="carregarFazendasMemoria()" placeholder="Ex: João Silva" class="w-full text-xs font-bold p-2 border rounded-lg bg-white">
-                                                <datalist id="lista-produtores"></datalist>
+                                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor / Cliente</label>
+                                                <select id="rec-sel-producer" onchange="changeActiveProducer('rec-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Nome da Fazenda</label>
-                                                <input type="text" id="rec_fazenda" list="lista-fazendas" onchange="carregarTalhoesMemoria()" placeholder="Ex: Boa Vista" class="w-full text-xs font-bold p-2 border rounded-lg bg-white">
-                                                <datalist id="lista-fazendas"></datalist>
+                                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Nome da Fazenda</label>
+                                                <select id="rec-sel-farm" onchange="changeActiveFarm('rec-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
                                             </div>
                                         </div>
                                         <div>
@@ -921,6 +928,7 @@
                                     </div>
                                 </div>
                             </div>
+
                             <div class="space-y-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
                                 <span class="text-xs font-black text-blue-800 uppercase block border-b border-blue-200 pb-1">Datas e Clima</span>
                                 <div class="grid grid-cols-2 gap-3 mb-2">
@@ -933,7 +941,6 @@
                                     <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vento (km/h)</label><input type="text" id="rec_vento" placeholder="3 - 10" class="w-full text-xs font-bold p-2 border rounded-lg"></div>
                                 </div>
                             </div>
-                            
                         </div>
 
                         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -973,18 +980,36 @@
                         </div>
 
                         <div class="flex gap-4 pt-4 border-t border-slate-200">
-                            <button onclick="gerarPDFRecomendacao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-sm shadow transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-file-pdf"></i><span>Gerar Laudo PDF</span></button>
+                            <button onclick="gerarPDFRecomendacao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-sm shadow transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-file-pdf"></i><span>Salvar e Gerar Laudo PDF</span></button>
                             <button onclick="enviarWhatsAppRecomendacao()" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-sm shadow transition-all flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp text-lg"></i><span>Enviar no WhatsApp</span></button>
                         </div>
-                    </div>
-                </div>
-                
+                    </div> <!-- FIM TELA 1 -->
+
+                    <!-- TELA 2: HISTÓRICO DE RECOMENDAÇÕES -->
+                    <div id="rec-history-view" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-4">
+                        <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-700 uppercase text-[10px] font-black tracking-wider">
+                                        <th class="p-3">Data</th>
+                                        <th class="p-3">Fazenda / Cliente</th>
+                                        <th class="p-3">Cultura / Área</th>
+                                        <th class="p-3 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rec-table-body" class="divide-y divide-slate-200 font-medium">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div> <!-- FIM TELA 2 -->
+
+                </div> <!-- FIM MÓDULO 5 -->
+
                 <div id="pdf-recomendacao-template" style="display:none;"></div>
 
                 <!-- MÓDULO 6: RELATÓRIO DE VISITA TÉCNICA -->
                 <div id="content-visit" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
                     
-                    <!-- Cabeçalho do Módulo -->
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
                         <div>
                             <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -1001,32 +1026,48 @@
                                 <i class="fa-solid fa-pen"></i><span>Novo Relatório</span>
                             </button>
                         </div>
-                    </div> <!-- ESSA DIV ESTAVA FALTANDO E FOI RECOLOCADA AQUI -->
-
-                    <!-- TELA 1: NOVO RELATÓRIO -->
+                    </div> 
 
                     <div id="visit-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor</label>
-                        <select id="visit-sel-producer" onchange="changeActiveProducer('visit-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Fazenda</label>
-                        <!-- Agora ele chama a função global changeActiveFarm -->
-                        <select id="visit-sel-farm" onchange="changeActiveFarm('visit-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
-                    </div>
-                    <div>
-        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Safra</label>
-        <!-- Transformado em campo de texto livre -->
-        <input type="text" id="visit-sel-safra" placeholder="Ex: 2025/2026" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
-    </div>
-    <div>
-        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Talhão / Área</label>
-        <!-- Transformado em campo de texto livre -->
-        <input type="text" id="visit-sel-talhao" placeholder="Ex: Visita Geral ou Talhão 1" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
-    </div>
-</div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor</label>
+                                <select id="visit-sel-producer" onchange="changeActiveProducer('visit-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Fazenda</label>
+                                <select id="visit-sel-farm" onchange="changeActiveFarm('visit-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Safra</label>
+                                <input type="text" id="visit-sel-safra" placeholder="Ex: 2025/2026" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Talhão / Área</label>
+                                <input type="text" id="visit-sel-talhao" placeholder="Ex: Visita Geral ou Talhão 1" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+                            </div>
+                        </div> 
+
+                    <!-- TELA 1: NOVO RELATÓRIO -->
+                    <div id="visit-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor</label>
+                                <select id="visit-sel-producer" onchange="changeActiveProducer('visit-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Fazenda</label>
+                                <select id="visit-sel-farm" onchange="changeActiveFarm('visit-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Safra</label>
+                                <input type="text" id="visit-sel-safra" placeholder="Ex: 2025/2026" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Talhão / Área</label>
+                                <input type="text" id="visit-sel-talhao" placeholder="Ex: Visita Geral ou Talhão 1" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
+                            </div>
+                        </div>
 
                         <div class="space-y-2">
                             <div class="flex items-center gap-2">
@@ -1058,7 +1099,7 @@
                                 <i class="fa-solid fa-cloud-arrow-up"></i><span>Salvar e Gerar Laudo PDF</span>
                             </button>
                         </div>
-                    </div>
+                    </div> <!-- FIM TELA 1 -->
 
                     <!-- TELA 2: HISTÓRICO DE RELATÓRIOS -->
                     <div id="visit-history-view" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-4">
@@ -1073,16 +1114,16 @@
                                     </tr>
                                 </thead>
                                 <tbody id="visit-table-body" class="divide-y divide-slate-200 font-medium">
-                                    <!-- Preenchido via JS -->
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </div> 
+
                 </div>
                 
                 <!-- CONTAINER OCULTO PARA GERAR O PDF DO RELATÓRIO -->
                 <div id="pdf-visit-template" style="display:none;"></div>
-                <div id="content-users" class="hidden space-y-6 overflow-y-auto h-full pr-2">
+                <div id="content-users" class="hidden h-full flex flex-col space-y-6 overflow-y-auto pr-2">
                     <div class="flex justify-between items-center border-b pb-4">
                         <div>
                             <h2 class="text-2xl font-black text-slate-900">Gestão de Fazendas e Clientes</h2>
@@ -2054,21 +2095,24 @@
 
         function changeActiveFarm(sourceSelectId) {
             const selectedVal = document.getElementById(sourceSelectId).value;
-            // <- Adicionamos o ID da Visita na sincronização abaixo
-            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'].forEach(id => {
+            // Adicionado o rec-sel-farm para sincronizar a aba de Recomendação
+            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm', 'rec-sel-farm'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && el.value !== selectedVal) el.value = selectedVal;
             });
 
-            populateSafraSelector();
-            populateTalhaoSelector();
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
 
             if (document.getElementById('content-seeds') && !document.getElementById('content-seeds').classList.contains('hidden')) {
-                seedsChangeFarm();
+                if(typeof seedsChangeFarm === 'function') seedsChangeFarm();
             } else if (document.getElementById('content-vrate') && !document.getElementById('content-vrate').classList.contains('hidden')) {
-                vrateChangeFarm();
-            } else {
-                updateGISMap();
+                if(typeof vrateChangeFarm === 'function') vrateChangeFarm();
+            } else if (document.getElementById('content-maps') && !document.getElementById('content-maps').classList.contains('hidden')) {
+                if(typeof updateGISMap === 'function') updateGISMap();
+            } else if (document.getElementById('content-recommendation') && !document.getElementById('content-recommendation').classList.contains('hidden')) {
+                // Atualiza os talhões automaticamente
+                if(typeof recChangeFarm === 'function') recChangeFarm();
             }
         }
 
@@ -2773,6 +2817,7 @@
             const showValues = document.getElementById('chk-values') ? document.getElementById('chk-values').checked : true;
 
             const buildLayer = (depthKey) => L.geoJSON(currentGeoJSON, {
+                smoothFactor: 2.5,
                 filter: f => {
                     if (selectedTalhoes.length && !selectedTalhoes.includes(String(f.properties.Talhao))) {
                         return false;
@@ -2885,6 +2930,7 @@
             if (vrateGeojsonLayer) vrateMap.removeLayer(vrateGeojsonLayer);
 
             vrateGeojsonLayer = L.geoJSON(vrateCustomGeoJSON, {
+                smoothFactor: 2.5,
                 style: { fillColor: '#cbd5e1', fillOpacity: 0.4, color: '#2563eb', weight: 1.5 }
             }).addTo(vrateMap);
 
@@ -3161,6 +3207,7 @@
             if (seedsGeojsonLayer) seedsMap.removeLayer(seedsGeojsonLayer);
 
             seedsGeojsonLayer = L.geoJSON(seedsCustomGeoJSON, {
+                smoothFactor: 2.5,
                 style: { fillColor: '#cbd5e1', fillOpacity: 0.4, color: '#16a34a', weight: 1.5 }
             }).addTo(seedsMap);
 
@@ -4944,25 +4991,23 @@
      }
 }
         // =========================================================================
-        // CORREÇÃO DOS FILTROS DE PRODUTOR E FAZENDA
+        // CORREÇÃO DOS FILTROS DE PRODUTOR E FAZENDA (ATUALIZADO PARA RECOMENDAÇÃO)
         // =========================================================================
         function populateProducerSelector() {
-            const prodSelect = document.getElementById('sel-producer');
-            const vrateProdSelect = document.getElementById('vrate-sel-producer');
-            const seedsProdSelect = document.getElementById('seeds-sel-producer');
+            const selects = ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer', 'rec-sel-producer'];
+            let currentVal = 'all';
+            const mainSelect = document.getElementById('sel-producer');
+            if (mainSelect && mainSelect.value) currentVal = mainSelect.value;
 
-            if (!prodSelect) return;
-
-            const currentVal = prodSelect.value || 'all';
-
-            prodSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
-            if (vrateProdSelect) vrateProdSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
-            if (seedsProdSelect) seedsProdSelect.innerHTML = '<option value="all">Todos os Produtores</option>';
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<option value="all">Todos os Produtores</option>';
+            });
 
             let producersSet = new Set();
             let keysToDisplay = Object.keys(farmsDatabase);
 
-            if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
+            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
                 keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
             }
 
@@ -4973,52 +5018,43 @@
 
             const sortedProducers = Array.from(producersSet).sort();
             sortedProducers.forEach(p => {
-                prodSelect.innerHTML += `<option value="${p}">${p}</option>`;
-                if (vrateProdSelect) vrateProdSelect.innerHTML += `<option value="${p}">${p}</option>`;
-                if (seedsProdSelect) seedsProdSelect.innerHTML += `<option value="${p}">${p}</option>`;
+                selects.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML += `<option value="${p}">${p}</option>`;
+                });
             });
 
-            prodSelect.value = currentVal;
-            if (vrateProdSelect) vrateProdSelect.value = currentVal;
-            if (seedsProdSelect) seedsProdSelect.value = currentVal;
-        }
-
-        function changeActiveProducer(sourceSelectId) {
-            const selectedVal = document.getElementById(sourceSelectId).value;
-            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer'].forEach(id => {
+            selects.forEach(id => {
                 const el = document.getElementById(id);
-                if (el && el.value !== selectedVal) el.value = selectedVal;
+                if (el) el.value = currentVal;
             });
-            
-            populateFarmSelector();
-            changeActiveFarm('sel-farm');
         }
 
         function populateFarmSelector() {
             populateProducerSelector();
-
-            const farmSelect = document.getElementById('sel-farm');
-            const vrateSelect = document.getElementById('vrate-sel-farm');
-            const seedsSelect = document.getElementById('seeds-sel-farm');
-
-            if (farmSelect) farmSelect.innerHTML = '';
-            if (vrateSelect) vrateSelect.innerHTML = '';
-            if (seedsSelect) seedsSelect.innerHTML = '';
+            const selects = ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm', 'rec-sel-farm'];
+            
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
 
             let keysToDisplay = Object.keys(farmsDatabase);
-            if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
+            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
                 keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
             }
 
-            const selectedProducer = document.getElementById('sel-producer') ? document.getElementById('sel-producer').value : 'all';
+            const mainProdSelect = document.getElementById('sel-producer');
+            const selectedProducer = mainProdSelect ? mainProdSelect.value : 'all';
 
             keysToDisplay.forEach(key => {
                 if (farmsDatabase[key]) {
                     const farm = farmsDatabase[key];
                     if (selectedProducer === 'all' || farm.producer === selectedProducer) {
-                        if (farmSelect) farmSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
-                        if (vrateSelect) vrateSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
-                        if (seedsSelect) seedsSelect.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
+                        selects.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) el.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
+                        });
                     }
                 }
             });
@@ -5028,21 +5064,50 @@
                 checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                         <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
-                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? `(${farmsDatabase[k].producer})` : ''} - ${farmsDatabase[k].location}</span>
+                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? '(' + farmsDatabase[k].producer + ')' : ''} - ${farmsDatabase[k].location}</span>
                     </label>
                 `).join('');
             }
 
-            populateSafraSelector();
-            populateTalhaoSelector();
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
+            if(typeof recChangeFarm === 'function') recChangeFarm(); 
+        }
+
+        function changeActiveProducer(sourceSelectId) {
+            const selectedVal = document.getElementById(sourceSelectId).value;
+            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer', 'rec-sel-producer'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value !== selectedVal) el.value = selectedVal;
+            });
+            populateFarmSelector();
+            if(typeof changeActiveFarm === 'function') changeActiveFarm('sel-farm');
+        }
+
+        function changeActiveFarm(sourceSelectId) {
+            const selectedVal = document.getElementById(sourceSelectId).value;
+            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm', 'rec-sel-farm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value !== selectedVal) el.value = selectedVal;
+            });
+
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
+
+            if (document.getElementById('content-seeds') && !document.getElementById('content-seeds').classList.contains('hidden')) {
+                if(typeof seedsChangeFarm === 'function') seedsChangeFarm();
+            } else if (document.getElementById('content-vrate') && !document.getElementById('content-vrate').classList.contains('hidden')) {
+                if(typeof vrateChangeFarm === 'function') vrateChangeFarm();
+            } else if (document.getElementById('content-maps') && !document.getElementById('content-maps').classList.contains('hidden')) {
+                if(typeof updateGISMap === 'function') updateGISMap();
+            } else if (document.getElementById('content-recommendation') && !document.getElementById('content-recommendation').classList.contains('hidden')) {
+                if(typeof recChangeFarm === 'function') recChangeFarm();
+            }
         }
         // =========================================================================
         // MÓDULO 5: RECOMENDAÇÃO AGRONÔMICA E ESTOQUE
         // =========================================================================
-        // =========================================================================
-        // MÓDULO 5: RECOMENDAÇÃO AGRONÔMICA E ESTOQUE
-        // =========================================================================
-       
+               
         let estoqueFazenda = [];
         let recRowId = 0;
 
@@ -5226,223 +5291,476 @@
             window.open(url, '_blank');
         }
 
-        function gerarPDFRecomendacao() {
-    salvarMemoriaRecomendacao();
-    
-    // 1. Puxar Dados do Formulário Principal
-    const produtor = document.getElementById('rec_produtor').value || 'Não informado';
-    const fazenda = document.getElementById('rec_fazenda').value || 'Não informada';
-    const clienteFinal = `${produtor} - ${fazenda}`;
-    
-    const cultura = document.getElementById('rec_cultura').value || 'Não informada';
-    const area = parseFloat(document.getElementById('rec_area').value) || 0;
-    
-    // Datas e Clima
-    const dataVisita = document.getElementById('rec_data_visita').value || '---';
-    const dataAplicacao = document.getElementById('rec_data_aplicacao').value || '---';
-    const temp = document.getElementById('rec_temp').value || '---';
-    const ur = document.getElementById('rec_ur').value || '---';
-    const vento = document.getElementById('rec_vento').value || '---';
-    const obs = document.getElementById('rec_obs').value.trim();
+        function toggleRecView(view) {
+            const formView = document.getElementById('rec-form-view');
+            const historyView = document.getElementById('rec-history-view');
+            
+            // Limpa o estilo forçado que estava fazendo a tabela "vazar" nas outras abas
+            if (formView) formView.style.display = '';
+            if (historyView) historyView.style.display = '';
 
-    // Calibração
-    const modeloEq = document.getElementById('rec_eq_modelo').value || '---';
-    const tanque = parseFloat(document.getElementById('rec_eq_tanque').value) || 0;
-    const vazao = parseFloat(document.getElementById('rec_eq_vazao').value) || 0;
-    const bicoEq = document.getElementById('rec_eq_bico').value || '---';
-    const gotaEq = document.getElementById('rec_eq_gota').value || '---';
-    const pressaoEq = document.getElementById('rec_eq_pressao').value || '---';
-    const haPorTanque = vazao > 0 ? (tanque / vazao) : 0;
-
-    // Pegar os talhões selecionados da lista múltipla
-    const selectTalhoes = document.getElementById('rec_talhoes');
-    const talhoesSelecionados = Array.from(selectTalhoes.selectedOptions).map(opt => opt.value).join(', ') || 'Nenhum';
-
-    // Puxar a Logo Base64
-    const logoImg = document.getElementById('pdf-logo-origens');
-    const logoSrc = (logoImg && logoImg.src && logoImg.src.length > 100) ? logoImg.src : '';
-    const logoHtml = logoSrc ? `<img src="${logoSrc}" style="height: 55px; object-fit: contain;">` : '<h2 style="font-weight:900; font-size:24px; color:#0f172a;">ORIGENS</h2>';
-
-    // 2. Montar a Tabela de Produtos e Abater do Estoque
-    let linhasHtml = '';
-    let numItens = 0;
-    
-    document.querySelectorAll('[id^="rec-linha-"]').forEach((linha, idx) => {
-        const id = linha.id.replace('rec-linha-', '');
-        const prodBusca = document.getElementById(`rec_prod_${id}`).value || '-';
-        const dose = parseFloat(document.getElementById(`rec_dose_${id}`).value) || 0;
-        const unid = document.getElementById(`rec_unid_${id}`).value || '-';
-        const totalTanque = document.getElementById(`rec_total_${id}`).value || '-';
-        const totalArea = dose * area;
-
-        let nomeFinal = prodBusca;
-        let lote = '-';
-        let validade = '-';
-        
-        // Abater do estoque e pegar os dados reais
-        if (typeof estoqueFazenda !== 'undefined' && estoqueFazenda.length > 0) {
-            const prodEstoque = estoqueFazenda.find(p => {
-                const buscaSemEst = prodBusca.split(' | Est:')[0].trim().toLowerCase();
-                const estoqueSemEst = (p.nomeExibicao || '').split(' | Est:')[0].trim().toLowerCase();
-                if (buscaSemEst === estoqueSemEst && estoqueSemEst !== '') return true;
-                
-                const buscaSoNome = prodBusca.split(' | ')[0].trim().toLowerCase();
-                const ingredienteLimpo = p.ingrediente.trim().toLowerCase();
-                return buscaSoNome === ingredienteLimpo || ingredienteLimpo.includes(buscaSoNome);
-            });
-
-            if (prodEstoque) {
-                nomeFinal = prodEstoque.ingrediente;
-                lote = prodEstoque.lote;
-                validade = prodEstoque.validade;
-                prodEstoque.volume -= totalArea; 
+            if (view === 'form') {
+                if (formView) formView.classList.remove('hidden');
+                if (historyView) historyView.classList.add('hidden');
+            } else {
+                if (formView) formView.classList.add('hidden');
+                if (historyView) historyView.classList.remove('hidden');
             }
         }
 
-        // Estilo Inline na Tabela para garantir renderização no HTML2PDF
-        let bg = idx % 2 === 0 ? 'background-color: white;' : 'background-color: #f8fafc;';
-        linhasHtml += `
-            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 9.5px; ${bg}">
-                <td style="padding: 6px; border-right: 1px solid #e2e8f0; font-weight: bold; color: #1e293b;">${nomeFinal}</td>
-                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: #475569;">${lote}<br>${validade}</td>
-                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: 500;">${dose.toFixed(2)}</td>
-                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #065f46; background-color: #ecfdf5;">${totalTanque} ${unid}</td>
-                <td style="padding: 6px; text-align: right; font-weight: bold; color: #15803d;">${totalArea.toFixed(1)} ${unid}</td>
-            </tr>
-        `;
-        numItens++;
-    });
-
-    if (typeof atualizarDatalistEstoque === 'function') atualizarDatalistEstoque();
-    const dataHoje = new Date().toLocaleDateString('pt-BR');
-    const consNome = typeof currentUser !== 'undefined' && currentUser ? (currentUser.displayName || currentUser.email) : 'Consultor Responsável';
-
-    // 3. NOVO TEMPLATE DO PDF COM ESTILOS INLINE (Resolve a tela em branco!)
-    let template = `
-        <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white; color: #0f172a; line-height: 1.2;">
+        async function gerarPDFRecomendacao() {
+            // 1. Puxar Dados do Formulário
+            const produtor = document.getElementById('rec-sel-producer').value || 'Não informado';
+            const farmKey = document.getElementById('rec-sel-farm').value;
+            const farmInfo = farmsDatabase[farmKey];
+            if (!farmInfo) { alert("Selecione a Fazenda!"); return; }
+            const fazenda = farmInfo.name;
+            const clienteFinal = `${produtor} - ${fazenda}`;
             
-            <div style="border: 2px solid #1e293b; padding: 12px; margin-bottom: 12px; background: #f8fafc; display: flex; align-items: center; justify-content: space-between;">
-                <div style="width: 33%; text-align: left;">
-                    ${logoHtml}
-                </div>
-                <div style="width: 66%; text-align: right;">
-                    <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: 0.05em; margin: 0;">RELATÓRIO DE VISITA TÉCNICA</h2>
-                    <p style="font-size: 10px; color: #475569; font-weight: bold; margin: 4px 0 0 0;">RECOMENDAÇÃO DE APLICAÇÃO DE DEFENSIVOS</p>
-                </div>
-            </div>
+            const cultura = document.getElementById('rec_cultura').value || 'Não informada';
+            const area = parseFloat(document.getElementById('rec_area').value) || 0;
+            
+            const dataVisita = document.getElementById('rec_data_visita').value || '---';
+            const dataAplicacao = document.getElementById('rec_data_aplicacao').value || '---';
+            const temp = document.getElementById('rec_temp').value || '---';
+            const ur = document.getElementById('rec_ur').value || '---';
+            const vento = document.getElementById('rec_vento').value || '---';
+            const obs = document.getElementById('rec_obs').value.trim();
 
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px; font-weight: bold; font-size: 11px;">
-                <span>FAZENDA/CLIENTE: <span style="color: #15803d; text-transform: uppercase;">${clienteFinal}</span></span>
-                <span>DATA DA EMISSÃO: <span style="color: #dc2626;">${dataHoje}</span></span>
-            </div>
+            const modeloEq = document.getElementById('rec_eq_modelo').value || '---';
+            const tanque = parseFloat(document.getElementById('rec_eq_tanque').value) || 0;
+            const vazao = parseFloat(document.getElementById('rec_eq_vazao').value) || 0;
+            const bicoEq = document.getElementById('rec_eq_bico').value || '---';
+            const gotaEq = document.getElementById('rec_eq_gota').value || '---';
+            const pressaoEq = document.getElementById('rec_eq_pressao').value || '---';
+            const haPorTanque = vazao > 0 ? (tanque / vazao) : 0;
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 12px; font-size: 10px; background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px;">
-                <div style="grid-column: span 2;"><strong>TALHÃO(ÕES):</strong> ${talhoesSelecionados}</div>
-                <div><strong>ÁREA TOTAL (ha):</strong> ${area}</div>
-                <div><strong>CULTURA:</strong> ${cultura}</div>
-                <div><strong>DATA VISITA:</strong> ${dataVisita}</div>
-                <div><strong>DATA APLICAÇÃO:</strong> ${dataAplicacao}</div>
-            </div>
+            const selectTalhoes = document.getElementById('rec_talhoes');
+            const talhoesSelecionados = Array.from(selectTalhoes.selectedOptions).map(opt => opt.value).join(', ') || 'Nenhum';
 
-            <div style="margin-bottom: 12px;">
-                <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
-                    ESPECIFICAÇÕES DA CALIBRAÇÃO DO EQUIPAMENTO
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
-                    <div><strong>MODELO:</strong> ${modeloEq}</div>
-                    <div><strong>CAP. TANQUE:</strong> ${tanque} L</div>
-                    <div><strong>VAZÃO:</strong> ${vazao} L/ha</div>
-                    <div><strong>BICO:</strong> ${bicoEq}</div>
-                    <div><strong>TIPO GOTA:</strong> ${gotaEq}</div>
-                    <div><strong>PRESSÃO:</strong> ${pressaoEq} PSI</div>
-                    <div style="grid-column: span 3; background: #fffbeb; padding: 4px; font-weight: bold; color: #78350f; border-top: 1px solid #e2e8f0; text-align: center; margin-top: 4px;">
-                        RENDIMENTO CALCULADO: ${haPorTanque.toFixed(1)} HA / TANQUE
+            const logoImg = document.getElementById('pdf-logo-origens');
+            const logoSrc = (logoImg && logoImg.src && logoImg.src.length > 100) ? logoImg.src : '';
+            const logoHtml = logoSrc ? `<img src="${logoSrc}" style="height: 55px; object-fit: contain;">` : '<h2 style="font-weight:900; font-size:24px; color:#0f172a;">ORIGENS</h2>';
+
+            let produtosSalvos = [];
+            let linhasHtml = '';
+            let numItens = 0;
+            
+            document.querySelectorAll('[id^="rec-linha-"]').forEach((linha, idx) => {
+                const id = linha.id.replace('rec-linha-', '');
+                const prodBusca = document.getElementById(`rec_prod_${id}`).value || '-';
+                const dose = parseFloat(document.getElementById(`rec_dose_${id}`).value) || 0;
+                const unid = document.getElementById(`rec_unid_${id}`).value || '-';
+                const totalTanque = document.getElementById(`rec_total_${id}`).value || '-';
+                const totalArea = dose * area;
+
+                let nomeFinal = prodBusca;
+                let lote = '-';
+                let validade = '-';
+                
+                // Abater do estoque e pegar os dados reais
+                if (typeof estoqueFazenda !== 'undefined' && estoqueFazenda.length > 0) {
+                    const prodEstoque = estoqueFazenda.find(p => {
+                        const buscaSemEst = prodBusca.split(' | Est:')[0].trim().toLowerCase();
+                        const estoqueSemEst = (p.nomeExibicao || '').split(' | Est:')[0].trim().toLowerCase();
+                        if (buscaSemEst === estoqueSemEst && estoqueSemEst !== '') return true;
+                        
+                        const buscaSoNome = prodBusca.split(' | ')[0].trim().toLowerCase();
+                        const ingredienteLimpo = p.ingrediente.trim().toLowerCase();
+                        return buscaSoNome === ingredienteLimpo || ingredienteLimpo.includes(buscaSoNome);
+                    });
+
+                    if (prodEstoque) {
+                        nomeFinal = prodEstoque.ingrediente;
+                        lote = prodEstoque.lote;
+                        validade = prodEstoque.validade;
+                        prodEstoque.volume -= totalArea; 
+                    }
+                }
+
+                let bg = idx % 2 === 0 ? 'background-color: white;' : 'background-color: #f8fafc;';
+                
+                produtosSalvos.push({ nomeFinal, lote, validade, dose, unid, totalTanque, totalArea, bg });
+
+                linhasHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0; font-size: 9.5px; ${bg}">
+                        <td style="padding: 6px; border-right: 1px solid #e2e8f0; font-weight: bold; color: #1e293b;">${nomeFinal}</td>
+                        <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: #475569;">${lote}<br>${validade}</td>
+                        <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: 500;">${dose.toFixed(2)}</td>
+                        <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #065f46; background-color: #ecfdf5;">${totalTanque} ${unid}</td>
+                        <td style="padding: 6px; text-align: right; font-weight: bold; color: #15803d;">${totalArea.toFixed(1)} ${unid}</td>
+                    </tr>
+                `;
+                numItens++;
+            });
+
+            if (typeof atualizarDatalistEstoque === 'function') atualizarDatalistEstoque();
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const consNome = typeof currentUser !== 'undefined' && currentUser ? (currentUser.displayName || currentUser.email) : 'Consultor Responsável';
+
+            let template = `
+                <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white; color: #0f172a; line-height: 1.2;">
+                    
+                    <div style="border: 2px solid #1e293b; padding: 12px; margin-bottom: 12px; background: #f8fafc; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="width: 33%; text-align: left;">
+                            ${logoHtml}
+                        </div>
+                        <div style="width: 66%; text-align: right;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: 0.05em; margin: 0;">RELATÓRIO DE VISITA TÉCNICA</h2>
+                            <p style="font-size: 10px; color: #475569; font-weight: bold; margin: 4px 0 0 0;">RECOMENDAÇÃO DE APLICAÇÃO DE DEFENSIVOS</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px; font-weight: bold; font-size: 11px;">
+                        <span>FAZENDA/CLIENTE: <span style="color: #15803d; text-transform: uppercase;">${clienteFinal}</span></span>
+                        <span>DATA DA EMISSÃO: <span style="color: #dc2626;">${dataHoje}</span></span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 12px; font-size: 10px; background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                        <div style="grid-column: span 2;"><strong>TALHÃO(ÕES):</strong> ${talhoesSelecionados}</div>
+                        <div><strong>ÁREA TOTAL (ha):</strong> ${area}</div>
+                        <div><strong>CULTURA:</strong> ${cultura}</div>
+                        <div><strong>DATA VISITA:</strong> ${dataVisita}</div>
+                        <div><strong>DATA APLICAÇÃO:</strong> ${dataAplicacao}</div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
+                            ESPECIFICAÇÕES DA CALIBRAÇÃO DO EQUIPAMENTO
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
+                            <div><strong>MODELO:</strong> ${modeloEq}</div>
+                            <div><strong>CAP. TANQUE:</strong> ${tanque} L</div>
+                            <div><strong>VAZÃO:</strong> ${vazao} L/ha</div>
+                            <div><strong>BICO:</strong> ${bicoEq}</div>
+                            <div><strong>TIPO GOTA:</strong> ${gotaEq}</div>
+                            <div><strong>PRESSÃO:</strong> ${pressaoEq} PSI</div>
+                            <div style="grid-column: span 3; background: #fffbeb; padding: 4px; font-weight: bold; color: #78350f; border-top: 1px solid #e2e8f0; text-align: center; margin-top: 4px;">
+                                RENDIMENTO CALCULADO: ${haPorTanque.toFixed(1)} HA / TANQUE
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
+                            CONDIÇÕES AMBIENTAIS MÍNIMAS PARA APLICAÇÃO
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
+                            <div><strong>UMIDADE:</strong> ${ur}</div>
+                            <div><strong>VENTO:</strong> ${vento}</div>
+                            <div><strong>TEMP.:</strong> ${temp}</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>PRODUTOS RECOMENDADOS</span>
+                            <span style="font-size: 8px; color: #6ee7b7; font-family: monospace;">${numItens} ITENS</span>
+                        </div>
+                        <table style="width: 100%; text-align: left; border-collapse: collapse; border: 1px solid #cbd5e1; font-size: 8.5px;">
+                            <thead>
+                                <tr style="background: #e2e8f0; color: #1e293b; font-weight: bold; border-bottom: 1px solid #cbd5e1;">
+                                    <th style="padding: 6px; border-right: 1px solid #cbd5e1;">PRODUTO</th>
+                                    <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">LOTE / VAL.</th>
+                                    <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">DOSE (/ha)</th>
+                                    <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center; background: #d1fae5;">TOTAL / TANQUE</th>
+                                    <th style="padding: 6px; text-align: right;">TOTAL P/ ÁREA</th>
+                                </tr>
+                            </thead>
+                            <tbody>${linhasHtml}</tbody>
+                        </table>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
+                            OBSERVAÇÕES TÉCNICAS
+                        </div>
+                        <div style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; font-size: 9.5px; color: #334155; min-height: 40px; white-space: pre-line;">
+                            ${obs || 'Nenhuma observação inserida.'}
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 8.5px; letter-spacing: 0.05em; margin-bottom: 4px;">
+                            PRECAUÇÕES DE USO E SEGURANÇA
+                        </div>
+                        <ol style="padding-left: 14px; font-size: 7.5px; color: #334155; margin: 4px 0; font-weight: 500;">
+                            <li style="margin-bottom: 2px;">Antes de iniciar o manuseio dos produtos, leia atenciosamente as instruções do rótulo e/ou bula.</li>
+                            <li style="margin-bottom: 2px;">Use os equipamentos de proteção individual (EPI) recomendados.</li>
+                            <li style="margin-bottom: 2px;">Ao fazer a aferição do equipamento de aplicação, utilize água limpa e verifique se há vazamentos.</li>
+                            <li style="margin-bottom: 2px;">Faça a tríplice lavagem ou lavagem sob pressão das embalagens vazias e descarte corretamente.</li>
+                            <li style="margin-bottom: 2px;">Não reutilize a embalagem vazia. Mantenha sobras nas embalagens originais fechadas em local trancado.</li>
+                            <li style="margin-bottom: 2px;">Não coma, não beba e não fume durante o manuseio do produto. Não manuseie com mãos desprotegidas.</li>
+                            <li style="margin-bottom: 2px;">Após o manuseio/aplicação dos produtos tome banho, troque e lave as suas roupas.</li>
+                        </ol>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #cbd5e1; padding-top: 12px; margin-top: 16px; font-size: 9px;">
+                        <div style="text-align: center;">
+                            <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">${consNome}</div>
+                            <div style="font-size: 8px; color: #64748b;">Responsável Técnico / CREA</div>
+                        </div>
+                        <div style="text-align: center; display: flex; flex-direction: column; justify-content: flex-end;">
+                            <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">PRODUTOR / CLIENTE</div>
+                            <div style="font-size: 8px; color: #64748b;">Responsável Operacional</div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            `;
 
-            <div style="margin-bottom: 12px;">
-                <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
-                    CONDIÇÕES AMBIENTAIS MÍNIMAS PARA APLICAÇÃO
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
-                    <div><strong>UMIDADE:</strong> ${ur}</div>
-                    <div><strong>VENTO:</strong> ${vento}</div>
-                    <div><strong>TEMP.:</strong> ${temp}</div>
-                </div>
-            </div>
+            let farmIdReal = farmKey; 
 
-            <div style="margin-bottom: 12px;">
-                <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>PRODUTOS RECOMENDADOS</span>
-                    <span style="font-size: 8px; color: #6ee7b7; font-family: monospace;">${numItens} ITENS</span>
-                </div>
-                <table style="width: 100%; text-align: left; border-collapse: collapse; border: 1px solid #cbd5e1; font-size: 8.5px;">
-                    <thead>
-                        <tr style="background: #e2e8f0; color: #1e293b; font-weight: bold; border-bottom: 1px solid #cbd5e1;">
-                            <th style="padding: 6px; border-right: 1px solid #cbd5e1;">PRODUTO</th>
-                            <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">LOTE / VAL.</th>
-                            <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">DOSE (/ha)</th>
-                            <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center; background: #d1fae5;">TOTAL / TANQUE</th>
-                            <th style="padding: 6px; text-align: right;">TOTAL P/ ÁREA</th>
+            const record = {
+                farmId: farmIdReal,
+                farmName: fazenda,
+                producer: produtor,
+                cultura: cultura,
+                area: area,
+                dataVisita, dataAplicacao, temp, ur, vento, obs,
+                modeloEq, tanque, vazao, bicoEq, gotaEq, pressaoEq, haPorTanque,
+                talhoesSelecionados,
+                produtos: produtosSalvos,
+                consultor: consNome,
+                numItens: numItens,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await db.collection("agronomic_recommendations").add(record);
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = template;
+
+                const nomeFazendaLimpo = fazenda.split(' ').join('_');
+                const dataLimpa = dataHoje.split('/').join('-');
+                const opt = { margin: 0, filename: `Recomendacao_${nomeFazendaLimpo}_${dataLimpa}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+
+                html2pdf().set(opt).from(tempDiv).save();
+
+                alert("Recomendação salva no histórico e PDF gerado com sucesso!");
+                toggleRecView('history');
+                loadRecHistory();
+
+            } catch(e) {
+                console.error(e);
+                alert("Erro ao salvar recomendação na nuvem: " + e.message);
+            }
+        }
+
+        async function loadRecHistory() {
+            const tbody = document.getElementById('rec-table-body');
+            if (!tbody) return;
+
+            const fazendaSelecionada = document.getElementById('rec-sel-farm').value;
+
+            if (!fazendaSelecionada) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 italic">Selecione uma fazenda no menu para ver o histórico.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Carregando histórico da fazenda...</td></tr>`;
+
+            try {
+                const snapshot = await db.collection("agronomic_recommendations").get();
+                let relatorios = [];
+
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    
+                    if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
+                        if (!currentUserAllowedFarms.includes(d.farmId)) return;
+                    }
+
+                    if (d.farmId === fazendaSelecionada) {
+                        relatorios.push({ id: doc.id, ...d });
+                    }
+                });
+
+                if (relatorios.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 italic">Nenhum histórico de recomendação encontrado para esta fazenda.</td></tr>`;
+                    return;
+                }
+
+                relatorios.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                let html = '';
+                relatorios.forEach(data => {
+                    const dataFormatada = data.createdAt ? new Date(data.createdAt).toLocaleDateString('pt-BR') : '-';
+
+                    let acoesHtml = `<button onclick="baixarPdfHistoricoRecomendacao('${data.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-file-pdf mr-1"></i> PDF</button>`;
+
+                    if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') {
+                        acoesHtml += `<button onclick="deletarRecomendacao('${data.id}')" class="text-red-500 hover:text-red-700 px-3 py-1.5 bg-red-50 rounded-lg font-bold transition-all" title="Excluir"><i class="fa-solid fa-trash"></i></button>`;
+                    }
+
+                    html += `
+                        <tr class="hover:bg-slate-50 border-b border-slate-200">
+                            <td class="p-3 font-semibold text-slate-800">${dataFormatada}</td>
+                            <td class="p-3 font-bold text-slate-700">${data.farmName || '-'} <br> <span class="text-[10px] font-medium text-slate-500">Produtor: ${data.producer || '-'}</span></td>
+                            <td class="p-3 text-slate-600 font-medium">${data.cultura || '-'} <br> <span class="text-[10px] text-emerald-700 font-bold">Área: ${data.area || 0} ha</span></td>
+                            <td class="p-3 text-right">${acoesHtml}</td>
                         </tr>
-                    </thead>
-                    <tbody>${linhasHtml}</tbody>
-                </table>
-            </div>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-red-500 font-bold">Erro ao carregar o histórico.</td></tr>`;
+            }
+        }
 
-            <div style="margin-bottom: 12px;">
-                <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">
-                    OBSERVAÇÕES TÉCNICAS
-                </div>
-                <div style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; font-size: 9.5px; color: #334155; min-height: 40px; white-space: pre-line;">
-                    ${obs || 'Nenhuma observação inserida.'}
-                </div>
-            </div>
+        async function baixarPdfHistoricoRecomendacao(docId) {
+            try {
+                const doc = await db.collection("agronomic_recommendations").doc(docId).get();
+                if(!doc.exists) { alert("Não encontrado no banco de dados."); return; }
+                const d = doc.data();
 
-            <div style="margin-bottom: 12px;">
-                <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 8.5px; letter-spacing: 0.05em; margin-bottom: 4px;">
-                    PRECAUÇÕES DE USO E SEGURANÇA
-                </div>
-                <ol style="padding-left: 14px; font-size: 7.5px; color: #334155; margin: 4px 0; font-weight: 500;">
-                    <li style="margin-bottom: 2px;">Antes de iniciar o manuseio dos produtos, leia atenciosamente as instruções do rótulo e/ou bula.</li>
-                    <li style="margin-bottom: 2px;">Use os equipamentos de proteção individual (EPI) recomendados.</li>
-                    <li style="margin-bottom: 2px;">Ao fazer a aferição do equipamento de aplicação, utilize água limpa e verifique se há vazamentos.</li>
-                    <li style="margin-bottom: 2px;">Faça a tríplice lavagem ou lavagem sob pressão das embalagens vazias e descarte corretamente.</li>
-                    <li style="margin-bottom: 2px;">Não reutilize a embalagem vazia. Mantenha sobras nas embalagens originais fechadas em local trancado.</li>
-                    <li style="margin-bottom: 2px;">Não coma, não beba e não fume durante o manuseio do produto. Não manuseie com mãos desprotegidas.</li>
-                    <li style="margin-bottom: 2px;">Após o manuseio/aplicação dos produtos tome banho, troque e lave as suas roupas.</li>
-                </ol>
-            </div>
+                const dataHoje = new Date(d.createdAt).toLocaleDateString('pt-BR');
+                const clienteFinal = `${d.producer} - ${d.farmName}`;
+                
+                const logoImg = document.getElementById('pdf-logo-origens');
+                const logoSrc = (logoImg && logoImg.src && logoImg.src.length > 100) ? logoImg.src : '';
+                const logoHtml = logoSrc ? `<img src="${logoSrc}" style="height: 55px; object-fit: contain;">` : '<h2 style="font-weight:900; font-size:24px; color:#0f172a;">ORIGENS</h2>';
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #cbd5e1; padding-top: 12px; margin-top: 16px; font-size: 9px;">
-                <div style="text-align: center;">
-                    <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">${consNome}</div>
-                    <div style="font-size: 8px; color: #64748b;">Responsável Técnico / CREA</div>
-                </div>
-                <div style="text-align: center; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">PRODUTOR / CLIENTE</div>
-                    <div style="font-size: 8px; color: #64748b;">Responsável Operacional</div>
-                </div>
-            </div>
-        </div>
-    `;
+                let linhasHtml = '';
+                if(d.produtos) {
+                    d.produtos.forEach(p => {
+                        linhasHtml += `
+                            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 9.5px; ${p.bg}">
+                                <td style="padding: 6px; border-right: 1px solid #e2e8f0; font-weight: bold; color: #1e293b;">${p.nomeFinal}</td>
+                                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: #475569;">${p.lote}<br>${p.validade}</td>
+                                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: 500;">${Number(p.dose).toFixed(2)}</td>
+                                <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #065f46; background-color: #ecfdf5;">${p.totalTanque} ${p.unid}</td>
+                                <td style="padding: 6px; text-align: right; font-weight: bold; color: #15803d;">${Number(p.totalArea).toFixed(1)} ${p.unid}</td>
+                            </tr>
+                        `;
+                    });
+                }
 
-    // 4. Configurar e Gerar PDF
-    const nomeFazendaLimpo = fazenda.split(' ').join('_');
-    const dataLimpa = dataHoje.split('/').join('-');
-    
-    const opt = {
-        margin: 0,
-        filename: `Recomendacao_${nomeFazendaLimpo}_${dataLimpa}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+                let template = `
+                    <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white; color: #0f172a; line-height: 1.2;">
+                        <div style="border: 2px solid #1e293b; padding: 12px; margin-bottom: 12px; background: #f8fafc; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="width: 33%; text-align: left;">${logoHtml}</div>
+                            <div style="width: 66%; text-align: right;">
+                                <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: 0.05em; margin: 0;">RELATÓRIO DE VISITA TÉCNICA</h2>
+                                <p style="font-size: 10px; color: #475569; font-weight: bold; margin: 4px 0 0 0;">RECOMENDAÇÃO DE APLICAÇÃO DE DEFENSIVOS</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px; font-weight: bold; font-size: 11px;">
+                            <span>FAZENDA/CLIENTE: <span style="color: #15803d; text-transform: uppercase;">${clienteFinal}</span></span>
+                            <span>DATA DA EMISSÃO: <span style="color: #dc2626;">${dataHoje}</span></span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 12px; font-size: 10px; background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <div style="grid-column: span 2;"><strong>TALHÃO(ÕES):</strong> ${d.talhoesSelecionados}</div>
+                            <div><strong>ÁREA TOTAL (ha):</strong> ${d.area}</div>
+                            <div><strong>CULTURA:</strong> ${d.cultura}</div>
+                            <div><strong>DATA VISITA:</strong> ${d.dataVisita}</div>
+                            <div><strong>DATA APLICAÇÃO:</strong> ${d.dataAplicacao}</div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">ESPECIFICAÇÕES DA CALIBRAÇÃO DO EQUIPAMENTO</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
+                                <div><strong>MODELO:</strong> ${d.modeloEq}</div>
+                                <div><strong>CAP. TANQUE:</strong> ${d.tanque} L</div>
+                                <div><strong>VAZÃO:</strong> ${d.vazao} L/ha</div>
+                                <div><strong>BICO:</strong> ${d.bicoEq}</div>
+                                <div><strong>TIPO GOTA:</strong> ${d.gotaEq}</div>
+                                <div><strong>PRESSÃO:</strong> ${d.pressaoEq} PSI</div>
+                                <div style="grid-column: span 3; background: #fffbeb; padding: 4px; font-weight: bold; color: #78350f; border-top: 1px solid #e2e8f0; text-align: center; margin-top: 4px;">RENDIMENTO CALCULADO: ${Number(d.haPorTanque).toFixed(1)} HA / TANQUE</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">CONDIÇÕES AMBIENTAIS MÍNIMAS PARA APLICAÇÃO</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; font-size: 9.5px; border: 1px solid #e2e8f0; padding: 6px; background: #f8fafc;">
+                                <div><strong>UMIDADE:</strong> ${d.ur}</div>
+                                <div><strong>VENTO:</strong> ${d.vento}</div>
+                                <div><strong>TEMP.:</strong> ${d.temp}</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                <span>PRODUTOS RECOMENDADOS</span><span style="font-size: 8px; color: #6ee7b7; font-family: monospace;">${d.numItens} ITENS</span>
+                            </div>
+                            <table style="width: 100%; text-align: left; border-collapse: collapse; border: 1px solid #cbd5e1; font-size: 8.5px;">
+                                <thead>
+                                    <tr style="background: #e2e8f0; color: #1e293b; font-weight: bold; border-bottom: 1px solid #cbd5e1;">
+                                        <th style="padding: 6px; border-right: 1px solid #cbd5e1;">PRODUTO</th>
+                                        <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">LOTE / VAL.</th>
+                                        <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center;">DOSE (/ha)</th>
+                                        <th style="padding: 6px; border-right: 1px solid #cbd5e1; text-align: center; background: #d1fae5;">TOTAL / TANQUE</th>
+                                        <th style="padding: 6px; text-align: right;">TOTAL P/ ÁREA</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${linhasHtml}</tbody>
+                            </table>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 9px; letter-spacing: 0.05em; margin-bottom: 4px;">OBSERVAÇÕES TÉCNICAS</div>
+                            <div style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; font-size: 9.5px; color: #334155; min-height: 40px; white-space: pre-line;">${d.obs || 'Nenhuma observação inserida.'}</div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="background: #1e293b; color: white; font-weight: bold; padding: 2px 8px; font-size: 8.5px; letter-spacing: 0.05em; margin-bottom: 4px;">PRECAUÇÕES DE USO E SEGURANÇA</div>
+                            <ol style="padding-left: 14px; font-size: 7.5px; color: #334155; margin: 4px 0; font-weight: 500;">
+                                <li style="margin-bottom: 2px;">Antes de iniciar o manuseio dos produtos, leia atenciosamente as instruções do rótulo e/ou bula.</li>
+                                <li style="margin-bottom: 2px;">Use os equipamentos de proteção individual (EPI) recomendados.</li>
+                                <li style="margin-bottom: 2px;">Ao fazer a aferição do equipamento de aplicação, utilize água limpa e verifique se há vazamentos.</li>
+                                <li style="margin-bottom: 2px;">Faça a tríplice lavagem ou lavagem sob pressão das embalagens vazias e descarte corretamente.</li>
+                                <li style="margin-bottom: 2px;">Não reutilize a embalagem vazia. Mantenha sobras nas embalagens originais fechadas em local trancado.</li>
+                                <li style="margin-bottom: 2px;">Não coma, não beba e não fume durante o manuseio do produto. Não manuseie com mãos desprotegidas.</li>
+                                <li style="margin-bottom: 2px;">Após o manuseio/aplicação dos produtos tome banho, troque e lave as suas roupas.</li>
+                            </ol>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #cbd5e1; padding-top: 12px; margin-top: 16px; font-size: 9px;">
+                            <div style="text-align: center;">
+                                <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">${d.consultor}</div>
+                                <div style="font-size: 8px; color: #64748b;">Responsável Técnico / CREA</div>
+                            </div>
+                            <div style="text-align: center; display: flex; flex-direction: column; justify-content: flex-end;">
+                                <div style="border-top: 1px solid #94a3b8; padding-top: 2px; font-weight: bold; text-transform: uppercase;">PRODUTOR / CLIENTE</div>
+                                <div style="font-size: 8px; color: #64748b;">Responsável Operacional</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = template;
 
-    // A MÁGICA ESTÁ AQUI: passamos o template gigante direto para o gerador de PDF
-    html2pdf().set(opt).from(template).save();
-}
+                const nomeFazendaLimpo = d.farmName.split(' ').join('_');
+                const dataLimpa = dataHoje.split('/').join('-');
+                
+                const opt = {
+                    margin: 0,
+                    filename: `Recomendacao_${nomeFazendaLimpo}_${dataLimpa}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().set(opt).from(tempDiv).save();
+
+            } catch(e) {
+                console.error(e);
+                alert("Erro ao baixar PDF do histórico.");
+            }
+        }
+
+        async function deletarRecomendacao(id) {
+            if (currentUserRole !== 'admin') {
+                alert("Apenas administradores podem excluir o histórico de recomendações.");
+                return;
+            }
+            if (confirm("Deseja realmente excluir esta recomendação permanentemente?")) {
+                try {
+                    await db.collection("agronomic_recommendations").doc(id).delete();
+                    alert("Excluído com sucesso!");
+                    loadRecHistory();
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao excluir do banco de dados.");
+                }
+            }
+        }
         function baixarEstoqueAtualizado() {
             if (estoqueFazenda.length === 0) {
                 alert("Nenhum estoque importado na memória para ser baixado.");
@@ -5543,69 +5861,48 @@
       // =========================================================================
         // MEMÓRIA INTELIGENTE DE CLIENTES E TALHÕES (LOCALSTORAGE)
         // =========================================================================
-        function salvarMemoriaRecomendacao() {
-            const produtor = document.getElementById('rec_produtor').value.trim();
-            const fazenda = document.getElementById('rec_fazenda').value.trim();
+        function recChangeFarm() {
+            const farmKey = document.getElementById('rec-sel-farm').value;
             const selectTalhoes = document.getElementById('rec_talhoes');
+            if(!selectTalhoes) return;
             
-            // Só salva se tiver produtor, fazenda e se tiver talhões de verdade importados
-            if (!produtor || !fazenda || selectTalhoes.options.length === 0 || selectTalhoes.options[0].disabled) return;
+            selectTalhoes.innerHTML = '<option value="" disabled>-- Selecione os Talhões --</option>';
+            document.getElementById('rec_area').value = '';
 
-            let talhoes = [];
-            for (let i = 0; i < selectTalhoes.options.length; i++) {
-                talhoes.push({
-                    nome: selectTalhoes.options[i].value,
-                    area: selectTalhoes.options[i].dataset.area,
-                    texto: selectTalhoes.options[i].text
+            const farmObj = farmsDatabase[farmKey];
+            if (farmObj && farmObj.geojson && farmObj.geojson.features) {
+                let talhoesMap = {};
+                
+                // Agrupa as áreas caso tenha múltiplos polígonos do mesmo talhão
+                farmObj.geojson.features.forEach(f => {
+                    let nomeTalhao = f.properties.Talhao || f.properties.TALHAO || f.properties.Gleba || f.properties.Nome || 'Geral';
+                    
+                    // MÁGICA DA PRECISÃO: Calcula a área real em Hectares pelas coordenadas GPS do polígono!
+                    let areaExataHa = 0;
+                    try {
+                        // turf.area devolve metros quadrados. Dividimos por 10.000 para Hectares.
+                        if (typeof turf !== 'undefined') {
+                            areaExataHa = turf.area(f) / 10000;
+                        } else {
+                            throw new Error("Turf indisponível");
+                        }
+                    } catch (e) {
+                        // Fallback de segurança: se a geometria falhar, tenta ler o que estava escrito na tabela
+                        areaExataHa = parseFloat(f.properties.Area || f.properties.AREA || f.properties.HA) || 0;
+                    }
+                    
+                    if (!talhoesMap[nomeTalhao]) talhoesMap[nomeTalhao] = 0;
+                    talhoesMap[nomeTalhao] += areaExataHa;
                 });
-            }
 
-            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
-            
-            // Remove o antigo se já existir (para atualizar com os novos talhões se você importou outro excel)
-            memoria = memoria.filter(m => !(m.produtor === produtor && m.fazenda === fazenda));
-            memoria.push({ produtor, fazenda, talhoes });
-            
-            localStorage.setItem('origens_clientes_memoria', JSON.stringify(memoria));
-            atualizarDatalistProdutores();
-        }
-
-        function atualizarDatalistProdutores() {
-            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
-            const produtoresUnicos = [...new Set(memoria.map(m => m.produtor))];
-            const datalistProd = document.getElementById('lista-produtores');
-            if(datalistProd) datalistProd.innerHTML = produtoresUnicos.map(p => `<option value="${p}">`).join('');
-        }
-
-        function carregarFazendasMemoria() {
-            const produtor = document.getElementById('rec_produtor').value;
-            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
-            const fazendas = memoria.filter(m => m.produtor === produtor).map(m => m.fazenda);
-            
-            const datalistFaz = document.getElementById('lista-fazendas');
-            if(datalistFaz) datalistFaz.innerHTML = fazendas.map(f => `<option value="${f}">`).join('');
-        }
-
-        function carregarTalhoesMemoria() {
-            const produtor = document.getElementById('rec_produtor').value;
-            const fazenda = document.getElementById('rec_fazenda').value;
-            let memoria = JSON.parse(localStorage.getItem('origens_clientes_memoria') || '[]');
-            
-            const cliente = memoria.find(m => m.produtor === produtor && m.fazenda === fazenda);
-            if (cliente && cliente.talhoes && cliente.talhoes.length > 0) {
-                const selectTalhoes = document.getElementById('rec_talhoes');
-                selectTalhoes.innerHTML = '';
-                cliente.talhoes.forEach(t => {
+                // Cria as opções no select com a área exata calculada
+                Object.keys(talhoesMap).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(t => {
                     const opt = document.createElement('option');
-                    opt.value = t.nome;
-                    opt.dataset.area = t.area;
-                    opt.text = t.texto;
+                    opt.value = t;
+                    opt.dataset.area = talhoesMap[t].toFixed(2);
+                    opt.text = `Talhão ${t} (${opt.dataset.area} ha)`;
                     selectTalhoes.appendChild(opt);
                 });
-                
-                // Prepara a área para a nova recomendação
-                document.getElementById('rec_area').value = '';
-                if(typeof recalcularTodosProdutosRec === 'function') recalcularTodosProdutosRec();
             }
         }
         // =========================================================================
@@ -5615,39 +5912,59 @@
         let speechRecognition = null;
         let isRecordingAudio = false;
 
-        // Controle de Abas dentro do Módulo
         function toggleVisitView(view) {
-            if (view === 'form') {
-                document.getElementById('visit-form-view').classList.remove('hidden');
-                document.getElementById('visit-history-view').classList.add('hidden');
-            } else {
-                document.getElementById('visit-form-view').classList.add('hidden');
-                document.getElementById('visit-history-view').classList.remove('hidden');
-            }
-        }
-
-        // Popula as Safras e Talhões ao mudar a fazenda na Visita
-        function visitChangeFarm() {
-            const farmKey = document.getElementById('visit-sel-farm').value;
-            const safraSelect = document.getElementById('visit-sel-safra');
-            const talhaoSelect = document.getElementById('visit-sel-talhao');
+            const formView = document.getElementById('visit-form-view');
+            const historyView = document.getElementById('visit-history-view');
             
-            safraSelect.innerHTML = '<option value="2026">Safra 2026</option><option value="2025">Safra 2025</option>';
-            talhaoSelect.innerHTML = '<option value="Geral">Visita Geral (Toda a Fazenda)</option>';
+            if (formView) formView.style.display = '';
+            if (historyView) historyView.style.display = '';
 
-            const farmObj = farmsDatabase[farmKey];
-            if (farmObj && farmObj.geojson && farmObj.geojson.features) {
-                let talhoesSet = new Set();
-                farmObj.geojson.features.forEach(f => {
-                    if (f.properties && f.properties.Talhao) talhoesSet.add(String(f.properties.Talhao));
-                });
-                Array.from(talhoesSet).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(t => {
-                    talhaoSelect.innerHTML += `<option value="${t}">Talhão ${t}</option>`;
-                });
+            if (view === 'form') {
+                if (formView) formView.classList.remove('hidden');
+                if (historyView) historyView.classList.add('hidden');
+            } else {
+                if (formView) formView.classList.add('hidden');
+                if (historyView) historyView.classList.remove('hidden');
             }
         }
 
-        // Transcrição de Áudio Nativa (Speech-to-Text do Navegador)
+        async function handleAudioFileUpload(inputEl) {
+            if (!inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const textArea = document.getElementById('visit-report-text');
+            const textoAnterior = textArea.value;
+            textArea.value = "Enviando áudio para a IA processar... Aguarde.\n";
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            
+            reader.onload = async function (e) {
+                const base64Audio = e.target.result.split(',')[1];
+                try {
+                    const url = "https://api-gemini.tiagoritterm.workers.dev";
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: "Você é um assistente agronômico. Transcreva este áudio ditado por um consultor no campo e organize as ideias em um texto claro e profissional para um relatório de visita técnica." },
+                                { inline_data: { mime_type: file.type, data: base64Audio } }
+                            ]
+                        }]
+                    };
+
+                    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const data = await response.json();
+                    
+                    if (response.ok && data.candidates) {
+                        textArea.value = (textoAnterior + '\n\n' + data.candidates[0].content.parts[0].text).trim();
+                    } else throw new Error(JSON.stringify(data));
+                } catch (error) {
+                    alert("Erro ao transcrever. Verifique a conexão ou a chave.");
+                    textArea.value = textoAnterior;
+                }
+                inputEl.value = ''; 
+            };
+        }
+
         function toggleIAAudioTranscription() {
             const btnText = document.getElementById('txt-mic-ia');
             const btnIcon = document.querySelector('#btn-mic-ia i');
@@ -5664,10 +5981,7 @@
             }
 
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("O seu navegador não suporta transcrição de áudio por IA. Recomendamos o uso do Google Chrome.");
-                return;
-            }
+            if (!SpeechRecognition) { alert("Navegador não suporta transcrição."); return; }
 
             speechRecognition = new SpeechRecognition();
             speechRecognition.lang = 'pt-BR';
@@ -5683,41 +5997,50 @@
             };
 
             speechRecognition.onresult = function(event) {
-                let interimTranscript = '';
                 let finalTranscript = '';
-
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript + '. ';
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
+                    if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript + '. ';
                 }
-                
-                if (finalTranscript) {
-                    textArea.value = (textArea.value + '\n' + finalTranscript).trim();
-                }
+                if (finalTranscript) textArea.value = (textArea.value + '\n' + finalTranscript).trim();
             };
-
-            speechRecognition.onerror = function(event) {
-                console.error("Erro na gravação de áudio:", event.error);
-                toggleIAAudioTranscription(); // Para e reseta o botão
-            };
-
             speechRecognition.start();
         }
 
-        // Lida com o Upload de Imagens convertendo para Base64
+        async function revisarRelatorioIA() {
+            const textArea = document.getElementById('visit-report-text');
+            const textoBruto = textArea.value.trim();
+            if (!textoBruto) { alert("Escreva um relatório primeiro!"); return; }
+
+            const textoAnterior = textArea.value;
+            textArea.value = "A IA está corrigindo e formatando seu relatório... Aguarde uns segundos. ✨\n";
+
+            try {
+                const url = "https://api-gemini.tiagoritterm.workers.dev";
+                const payload = {
+                    contents: [{
+                        parts: [{ text: "Você é um engenheiro agrônomo sênior e revisor de textos. Pegue o texto abaixo, corrija todos os erros de português, melhore a coesão, use vocabulário técnico e organize a estrutura nos padrões de um relatório profissional e normas da ABNT. Retorne apenas o texto revisado:\n\n" + textoBruto }]
+                    }]
+                };
+
+                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await response.json();
+                
+                if (response.ok && data.candidates) textArea.value = data.candidates[0].content.parts[0].text;
+                else throw new Error(JSON.stringify(data));
+            } catch (error) {
+                alert("Erro ao revisar o texto.");
+                textArea.value = textoAnterior;
+            }
+        }
+
         function handleVisitImagesUpload(inputEl) {
             if (!inputEl.files) return;
             const container = document.getElementById('visit-images-preview');
-            
             Array.from(inputEl.files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const base64Str = e.target.result;
                     visitImagesArray.push(base64Str);
-                    
                     const imgDiv = document.createElement('div');
                     imgDiv.className = "relative w-20 h-20 rounded-lg overflow-hidden border border-slate-300 shadow-sm";
                     imgDiv.innerHTML = `
@@ -5736,7 +6059,6 @@
             btnEl.parentElement.remove();
         }
 
-        // Salvar Relatório no Firebase e Gerar PDF
         async function saveAndGenerateVisitReport() {
             const farmKey = document.getElementById('visit-sel-farm').value;
             const farmInfo = farmsDatabase[farmKey];
@@ -5749,7 +6071,6 @@
 
             if (!texto) { alert("O relatório não pode estar vazio."); return; }
 
-            // Gera o HTML do PDF
             const dataHoje = new Date().toLocaleDateString('pt-BR');
             const consNome = currentUser ? (currentUser.displayName || currentUser.email) : 'Consultor Responsável';
 
@@ -5794,35 +6115,13 @@
                 </div>
             `;
 
-            // Exportar e Salvar
-            const opt = {
-                margin: 0,
-                filename: `RVT_${farmInfo.name.replace(/\s+/g, '_')}_${dataHoje.replace(/\//g, '-')}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
+            const opt = { margin: 0, filename: `RVT_${farmInfo.name.replace(/\s+/g, '_')}_${dataHoje.replace(/\//g, '-')}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = template;
 
-            // Salvar no Banco
             try {
-                // Para não estourar o banco com PDFs nativos pesados, salvamos os metadados. O PDF é gerado on-the-fly pelo Client ou salvo em Storage se tivessem Firebase Storage ativo. 
-                // Aqui salvamos o registro textual no Firestore para histórico visual
-                const record = {
-                    farmId: farmKey,
-                    farmName: farmInfo.name,
-                    producer: produtor,
-                    safra: safra,
-                    talhao: talhao,
-                    texto: texto,
-                    consultor: consNome,
-                    createdAt: new Date().toISOString()
-                };
+                const record = { farmId: farmKey, farmName: farmInfo.name, producer: produtor, safra: safra, talhao: talhao, texto: texto, consultor: consNome, createdAt: new Date().toISOString() };
                 await db.collection("visit_reports").add(record);
-                
-                // Gera o PDF visualmente
                 html2pdf().set(opt).from(tempDiv).save();
 
                 alert("Relatório de Visita salvo e PDF gerado com sucesso!");
@@ -5831,310 +6130,122 @@
                 visitImagesArray = [];
                 toggleVisitView('history');
                 loadVisitHistory();
-
             } catch (error) {
                 alert("Erro ao salvar o relatório: " + error.message);
             }
         }
 
-        
-    
+        async function loadVisitHistory() {
+            const tbody = document.getElementById('visit-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Carregando histórico...</td></tr>`;
+
+            try {
+                const snapshot = await db.collection("visit_reports").get();
+                let relatorios = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
+                        if (!currentUserAllowedFarms.includes(d.farmId)) return;
+                    }
+                    relatorios.push({ id: doc.id, ...d });
+                });
+
+                if (relatorios.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 italic">Nenhum relatório de visita encontrado.</td></tr>`;
+                    return;
+                }
+
+                relatorios.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                let html = '';
+                relatorios.forEach(data => {
+                    const dataFormatada = data.createdAt ? new Date(data.createdAt).toLocaleDateString('pt-BR') : '-';
+                    let acoesHtml = `
+                        <button onclick="viewVisitReport('${data.id}')" class="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-eye mr-1"></i> Ler</button>
+                        <button onclick="baixarPdfHistoricoVisita('${data.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-file-pdf mr-1"></i> PDF</button>
+                    `;
+                    if (typeof canEditVisit !== 'undefined' && canEditVisit) {
+                        acoesHtml += `<button onclick="deletarRelatorioVisita('${data.id}')" class="text-red-500 hover:text-red-700 px-3 py-1.5 bg-red-50 rounded-lg font-bold transition-all"><i class="fa-solid fa-trash"></i></button>`;
+                    }
+                    html += `
+                        <tr class="hover:bg-slate-50 border-b border-slate-200">
+                            <td class="p-3 font-semibold text-slate-800">${dataFormatada}</td>
+                            <td class="p-3 font-bold text-slate-700">${data.farmName || '-'} <br> <span class="text-[10px] font-medium text-slate-500">Produtor: ${data.producer || '-'}</span></td>
+                            <td class="p-3 text-slate-600 font-medium">Safra ${data.safra || '-'} <br> <span class="text-[10px] text-emerald-700 font-bold">Local: ${data.talhao !== 'Geral' && data.talhao ? 'T. ' + data.talhao : (data.talhao || '-')}</span></td>
+                            <td class="p-3 text-right">${acoesHtml}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-red-500 font-bold">Erro ao carregar o histórico.</td></tr>`;
+            }
+        }
+
         async function viewVisitReport(docId) {
             try {
                 const doc = await db.collection("visit_reports").doc(docId).get();
                 if (doc.exists) {
                     const d = doc.data();
                     const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
-                    // Exibe os dados em um Alert bonito ou modal. (Usaremos alert estruturado por simplicidade, ou você pode plugar um modal se já tiver).
                     alert(`📋 RELATÓRIO DE VISITA (${dataFormatada})\n\n📍 Fazenda: ${d.farmName} (${d.producer})\n🌱 Safra: ${d.safra} | Local: ${d.talhao}\n👨‍🌾 Consultor: ${d.consultor}\n\n📝 RELATO:\n${d.texto}`);
                 }
-            } catch (e) {
-                alert("Erro ao abrir relatório.");
-            }
+            } catch (e) { alert("Erro ao abrir relatório."); }
         }
 
         async function baixarPdfHistoricoVisita(docId) {
-    try {
-        // Busca os dados do Firebase
-        const doc = await db.collection("visit_reports").doc(docId).get();
-        if (!doc.exists) {
-            alert("Relatório não encontrado no banco de dados.");
-            return;
-        }
-        
-        const d = doc.data();
-        const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
-
-        // Monta o mesmo Layout do Relatório original
-        const template = `
-            <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white;">
-                <div style="border-bottom: 2px solid #0891b2; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <h1 style="color: #0891b2; margin: 0; font-size: 22px; font-weight: 900;">RELATÓRIO DE VISITA TÉCNICA</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 11px; font-weight: bold;">ORIGENS PARCERIAS AGRÍCOLAS | DATA: ${dataFormatada}</p>
-                    </div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                        <tr>
-                            <td style="padding: 4px; width: 50%;"><b>Produtor:</b> ${d.producer}</td>
-                            <td style="padding: 4px; width: 50%;"><b>Fazenda:</b> ${d.farmName}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px;"><b>Safra:</b> ${d.safra}</td>
-                            <td style="padding: 4px;"><b>Local Avaliado:</b> ${d.talhao !== 'Geral' ? 'Talhão ' + d.talhao : d.talhao}</td>
-                        </tr>
-                    </table>
-                </div>
-                <h3 style="font-size: 14px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">OBSERVAÇÕES E RECOMENDAÇÕES</h3>
-                <p style="font-size: 12px; color: #334155; white-space: pre-wrap; line-height: 1.6;">${d.texto}</p>
-                <div style="margin-top: 50px; text-align: center;">
-                    <div style="width: 250px; border-top: 1px solid #000; margin: 0 auto; padding-top: 5px;">
-                        <p style="margin: 0; font-size: 11px; font-weight: bold;">${d.consultor}</p>
-                        <p style="margin: 0; font-size: 9px; color: #64748b;">Responsável Técnico</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Transforma o texto temporário em um elemento do navegador
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = template;
-
-        // Configurações do gerador de PDF
-        const opt = {
-            margin: 0,
-            filename: `RVT_${d.farmName.replace(/\s+/g, '_')}_${dataFormatada.replace(/\//g, '-')}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        // Roda a mágica e baixa o arquivo!
-        html2pdf().set(opt).from(tempDiv).save();
-
-    } catch (e) {
-        console.error("Erro ao gerar PDF:", e);
-        alert("Ocorreu um erro ao baixar o PDF.");
-    }
-}
-        
-        // Inicia a lista de produtores quando carregar a página
-        setTimeout(atualizarDatalistProdutores, 500);  
-        // =========================================================================
-        // ATUALIZAÇÃO FORÇADA DOS FILTROS (MAPA, VRATE, SEMENTES E VISITA)
-        // =========================================================================
-        function populateProducerSelector() {
-            const selects = ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer'];
-            let currentVal = 'all';
-            const mainSelect = document.getElementById('sel-producer');
-            if (mainSelect && mainSelect.value) currentVal = mainSelect.value;
-
-            selects.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.innerHTML = '<option value="all">Todos os Produtores</option>';
-            });
-
-            let producersSet = new Set();
-            let keysToDisplay = Object.keys(farmsDatabase);
-
-            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
-                keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
-            }
-
-            keysToDisplay.forEach(key => {
-                const farm = farmsDatabase[key];
-                if (farm && farm.producer) producersSet.add(farm.producer);
-            });
-
-            const sortedProducers = Array.from(producersSet).sort();
-            sortedProducers.forEach(p => {
-                selects.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.innerHTML += `<option value="${p}">${p}</option>`;
-                });
-            });
-
-            selects.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = currentVal;
-            });
-        }
-
-        function populateFarmSelector() {
-            populateProducerSelector();
-            const selects = ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'];
-            
-            selects.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.innerHTML = '';
-            });
-
-            let keysToDisplay = Object.keys(farmsDatabase);
-            if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin' && typeof currentUserAllowedFarms !== 'undefined' && !currentUserAllowedFarms.includes('all')) {
-                keysToDisplay = keysToDisplay.filter(k => currentUserAllowedFarms.includes(k));
-            }
-
-            const mainProdSelect = document.getElementById('sel-producer');
-            const selectedProducer = mainProdSelect ? mainProdSelect.value : 'all';
-
-            keysToDisplay.forEach(key => {
-                if (farmsDatabase[key]) {
-                    const farm = farmsDatabase[key];
-                    if (selectedProducer === 'all' || farm.producer === selectedProducer) {
-                        selects.forEach(id => {
-                            const el = document.getElementById(id);
-                            if (el) el.innerHTML += `<option value="${key}">${farm.name} (${farm.area} Ha)</option>`;
-                        });
-                    }
-                }
-            });
-
-            const checkboxContainer = document.getElementById('new-farm-checkboxes');
-            if (checkboxContainer) {
-                checkboxContainer.innerHTML = Object.keys(farmsDatabase).map(k => `
-                    <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                        <input type="checkbox" name="chk-user-farms" value="${k}" class="chk-farm-item h-4 w-4 text-origens-green rounded">
-                        <span>${farmsDatabase[k].name} ${farmsDatabase[k].producer ? '(' + farmsDatabase[k].producer + ')' : ''} - ${farmsDatabase[k].location}</span>
-                    </label>
-                `).join('');
-            }
-
-            if(typeof populateSafraSelector === 'function') populateSafraSelector();
-            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
-        }
-
-        function changeActiveProducer(sourceSelectId) {
-            const selectedVal = document.getElementById(sourceSelectId).value;
-            ['sel-producer', 'vrate-sel-producer', 'seeds-sel-producer', 'visit-sel-producer'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && el.value !== selectedVal) el.value = selectedVal;
-            });
-            populateFarmSelector();
-            changeActiveFarm('sel-farm');
-        }
-
-        function changeActiveFarm(sourceSelectId) {
-            const selectedVal = document.getElementById(sourceSelectId).value;
-            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && el.value !== selectedVal) el.value = selectedVal;
-            });
-
-            if(typeof populateSafraSelector === 'function') populateSafraSelector();
-            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
-
-            if (document.getElementById('content-seeds') && !document.getElementById('content-seeds').classList.contains('hidden')) {
-                if(typeof seedsChangeFarm === 'function') seedsChangeFarm();
-            } else if (document.getElementById('content-vrate') && !document.getElementById('content-vrate').classList.contains('hidden')) {
-                if(typeof vrateChangeFarm === 'function') vrateChangeFarm();
-            } else if (document.getElementById('content-maps') && !document.getElementById('content-maps').classList.contains('hidden')) {
-                if(typeof updateGISMap === 'function') updateGISMap();
-            }
-        }
-        // =========================================================================
-        // UPLOAD E TRANSCRIÇÃO DE ÁUDIO VIA API - PADRÃO OFICIAL GOOGLE (AQ.)
-        // =========================================================================
-        async function handleAudioFileUpload(inputEl) {
-            if (!inputEl.files || !inputEl.files[0]) return;
-            const file = inputEl.files[0];
-            const textArea = document.getElementById('visit-report-text');
-
-            const textoAnterior = textArea.value;
-            textArea.value = "Enviando áudio para a IA processar... Aguarde.\n";
-
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            
-            reader.onload = async function (e) {
-                const base64Audio = e.target.result.split(',')[1];
-                const mimeType = file.type;
-
-                try {
-                    // Chave já preenchida para você:
-                    const url = "https://api-gemini.tiagoritterm.workers.dev";
-
-                    const payload = {
-                        contents: [{
-                            parts: [
-                                { text: "Você é um assistente agronômico. Transcreva este áudio ditado por um consultor no campo e organize as ideias em um texto claro e profissional para um relatório de visita técnica." },
-                                { inline_data: { mime_type: mimeType, data: base64Audio } }
-                            ]
-                        }]
-                    };
-
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const data = await response.json();
-                    
-                    if (response.ok && data.candidates) {
-                        const transcricao = data.candidates[0].content.parts[0].text;
-                        textArea.value = (textoAnterior + '\n\n' + transcricao).trim();
-                    } else {
-                        throw new Error(JSON.stringify(data));
-                    }
-
-                } catch (error) {
-                    console.error("❌ Erro na API do Gemini:", error);
-                    alert("Erro ao transcrever. Verifique a conexão ou a chave.");
-                    textArea.value = textoAnterior;
-                }
-                
-                inputEl.value = ''; 
-            };
-        }
-
-        // =========================================================================
-        // REVISÃO DE TEXTO E FORMATAÇÃO ABNT COM IA
-        // =========================================================================
-        async function revisarRelatorioIA() {
-            const textArea = document.getElementById('visit-report-text');
-            const textoBruto = textArea.value.trim();
-
-            if (!textoBruto) {
-                alert("Por favor, escreva ou grave um relatório primeiro para a IA revisar!");
-                return;
-            }
-
-            const textoAnterior = textArea.value;
-            textArea.value = "A IA está corrigindo e formatando seu relatório... Aguarde uns segundos. ✨\n";
-
             try {
-                // Chave já preenchida para você:
-                const url = "https://api-gemini.tiagoritterm.workers.dev";
+                const doc = await db.collection("visit_reports").doc(docId).get();
+                if (!doc.exists) return;
+                const d = doc.data();
+                const dataFormatada = new Date(d.createdAt).toLocaleDateString('pt-BR');
+                const template = `
+                    <div style="width: 210mm; min-height: 297mm; padding: 15mm; font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; background: white;">
+                        <div style="border-bottom: 2px solid #0891b2; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h1 style="color: #0891b2; margin: 0; font-size: 22px; font-weight: 900;">RELATÓRIO DE VISITA TÉCNICA</h1>
+                                <p style="margin: 5px 0 0 0; color: #64748b; font-size: 11px; font-weight: bold;">ORIGENS PARCERIAS AGRÍCOLAS | DATA: ${dataFormatada}</p>
+                            </div>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                                <tr>
+                                    <td style="padding: 4px; width: 50%;"><b>Produtor:</b> ${d.producer}</td>
+                                    <td style="padding: 4px; width: 50%;"><b>Fazenda:</b> ${d.farmName}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;"><b>Safra:</b> ${d.safra}</td>
+                                    <td style="padding: 4px;"><b>Local Avaliado:</b> ${d.talhao !== 'Geral' ? 'Talhão ' + d.talhao : d.talhao}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <h3 style="font-size: 14px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">OBSERVAÇÕES E RECOMENDAÇÕES</h3>
+                        <p style="font-size: 12px; color: #334155; white-space: pre-wrap; line-height: 1.6;">${d.texto}</p>
+                        <div style="margin-top: 50px; text-align: center;">
+                            <div style="width: 250px; border-top: 1px solid #000; margin: 0 auto; padding-top: 5px;">
+                                <p style="margin: 0; font-size: 11px; font-weight: bold;">${d.consultor}</p>
+                                <p style="margin: 0; font-size: 9px; color: #64748b;">Responsável Técnico</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = template;
+                const opt = { margin: 0, filename: `RVT_${d.farmName.replace(/\s+/g, '_')}_${dataFormatada.replace(/\//g, '-')}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+                html2pdf().set(opt).from(tempDiv).save();
+            } catch (e) { alert("Ocorreu um erro ao baixar o PDF."); }
+        }
 
-                const payload = {
-                    contents: [{
-                        parts: [{ 
-                            text: "Você é um engenheiro agrônomo sênior e revisor de textos. Pegue o texto abaixo, corrija todos os erros de português, melhore a coesão, use vocabulário técnico e organize a estrutura nos padrões de um relatório profissional e normas da ABNT. Retorne apenas o texto revisado:\n\n" + textoBruto 
-                        }]
-                    }]
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-                
-                if (response.ok && data.candidates) {
-                    textArea.value = data.candidates[0].content.parts[0].text;
-                } else {
-                    throw new Error(JSON.stringify(data));
-                }
-
-            } catch (error) {
-                console.error("Erro na API do Gemini:", error);
-                alert("Ocorreu um erro ao revisar o texto. O texto original foi restaurado.");
-                textArea.value = textoAnterior;
+        async function deletarRelatorioVisita(id) {
+            if (typeof canEditVisit !== 'undefined' && !canEditVisit) return;
+            if (confirm("Tem certeza que deseja excluir este relatório permanentemente do banco de dados?")) {
+                try {
+                    await db.collection("visit_reports").doc(id).delete();
+                    alert("Relatório excluído com sucesso!");
+                    loadVisitHistory();
+                } catch (erro) { alert("Erro ao excluir. Tente novamente."); }
             }
-        }        
+        }
         // =========================================================================
         // LÓGICA DO BI: AUDITORIA / CONFERE DE AMOSTRAGEM COM FILTROS EM CASCATA
         // =========================================================================
@@ -6157,22 +6268,19 @@
                 confView.classList.remove('hidden');
                 btnGen.className = "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all bg-transparent";
                 btnConf.className = "px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-blue-700 shadow-sm transition-all";
-                
                 if (confereRawRows.length === 0) fetchConfereData();
             }
         }
 
         async function fetchConfereData() {
             const tbody = document.getElementById('confere-table-body');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Sincronizando Auditoria com o Google Sheets...</td></tr>`;
-
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Sincronizando Auditoria...</td></tr>`;
             try {
                 const response = await fetch(GOOGLE_SHEETS_CONFERE_URL);
                 const csvText = await response.text();
                 parseConfereCSV(csvText);
             } catch (error) {
-                console.error("Erro ao buscar aba Confere:", error);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-600 font-bold">Erro ao carregar a Auditoria. Verifique sua conexão.</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-600 font-bold">Erro ao carregar.</td></tr>`;
             }
         }
 
@@ -6181,53 +6289,41 @@
             confereRawRows = [];
             if (lines.length < 2) return;
 
-            let headerIdx = 0;
-            let headerRow = [];
+            let headerIdx = 0, headerRow = [];
             for (let i = 0; i < Math.min(5, lines.length); i++) {
                 const tempCols = lines[i].split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim().toUpperCase());
-                if (tempCols.includes('EQUIPE DE COLETA') || tempCols.includes('DATA')) {
-                    headerRow = tempCols;
-                    headerIdx = i;
-                    break;
-                }
+                if (tempCols.includes('EQUIPE DE COLETA') || tempCols.includes('DATA')) { headerRow = tempCols; headerIdx = i; break; }
             }
 
-            const iEquipe = headerRow.findIndex(h => h.includes('EQUIPE'));
-            const iData = headerRow.findIndex(h => h === 'DATA');
+            const iEq = headerRow.findIndex(h => h.includes('EQUIPE'));
+            const iDt = headerRow.findIndex(h => h === 'DATA');
             const iSol = headerRow.findIndex(h => h.includes('SOLICITANTE') || h.includes('PRODUTOR'));
             const iFaz = headerRow.findIndex(h => h.includes('FAZENDA') || h.includes('PROPRIEDADE'));
-            const iArea = headerRow.findIndex(h => h.includes('ÁREA') || h.includes('AREA') || h === 'HA');
+            const iAr = headerRow.findIndex(h => h.includes('ÁREA') || h.includes('AREA') || h === 'HA');
             const iNcb = headerRow.findIndex(h => h === 'NCB');
             const iAmPr = headerRow.findIndex(h => h === 'AM_PR');
 
             for (let i = headerIdx + 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
-
                 const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
-
-                const equipe = iEquipe > -1 ? cols[iEquipe] : '';
-                const dataStr = iData > -1 ? cols[iData] : '';
-                const areaStr = iArea > -1 ? cols[iArea] : '0';
+                const eq = iEq > -1 ? cols[iEq] : '';
+                const dtStr = iDt > -1 ? cols[iDt] : '';
+                const arStr = iAr > -1 ? cols[iAr] : '0';
                 
-                if (equipe.toUpperCase().includes('TOTAL')) continue; // Pula linha de totais
-                if (!equipe && !dataStr && parseNumber(areaStr) === 0) continue; 
+                if (eq.toUpperCase().includes('TOTAL')) continue;
+                if (!eq && !dtStr && parseNumber(arStr) === 0) continue; 
 
                 confereRawRows.push({
-                    equipe: equipe || 'N/I',
-                    data: dataStr || 'N/I',
-                    solicitante: iSol > -1 ? cols[iSol] || 'N/I' : 'N/I',
-                    fazenda: iFaz > -1 ? cols[iFaz] || 'N/I' : 'N/I',
-                    area: parseNumber(areaStr) || 0,
-                    ncb: iNcb > -1 ? cols[iNcb] || '-' : '-',
-                    amPr: iAmPr > -1 ? cols[iAmPr] || '-' : '-'
+                    equipe: eq || 'N/I', data: dtStr || 'N/I', solicitante: iSol > -1 ? cols[iSol] || 'N/I' : 'N/I',
+                    fazenda: iFaz > -1 ? cols[iFaz] || 'N/I' : 'N/I', area: parseNumber(arStr) || 0,
+                    ncb: iNcb > -1 ? cols[iNcb] || '-' : '-', amPr: iAmPr > -1 ? cols[iAmPr] || '-' : '-'
                 });
             }
-
             populateConfereFilters();
             applyConfereFilters();
         }
-        // Abre/Fecha Dropdowns do Confere e clica fora para fechar
+
         function toggleConfereDropdown(id) {
             const el = document.getElementById(id);
             const isHidden = el.classList.contains('hidden');
@@ -6236,44 +6332,21 @@
         }
 
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('#box-dropdown-equipe') && 
-                !e.target.closest('#box-dropdown-data') && 
-                !e.target.closest('#box-dropdown-produtor') && 
-                !e.target.closest('#box-dropdown-fazenda')) {
-                document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
-            }
-        });
-
-        // =========================================================================
-        // CONTROLE VISUAL: ABRIR/FECHAR DROPDOWNS DO CONFERE
-        // =========================================================================
-        function toggleConfereDropdown(id) {
-            const el = document.getElementById(id);
-            const isHidden = el.classList.contains('hidden');
-            document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
-            if (isHidden) el.classList.remove('hidden');
-        }
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#box-dropdown-equipe') && 
-                !e.target.closest('#box-dropdown-data') && 
-                !e.target.closest('#box-dropdown-produtor') && 
-                !e.target.closest('#box-dropdown-fazenda')) {
+            if (!e.target.closest('#box-dropdown-equipe') && !e.target.closest('#box-dropdown-data') && !e.target.closest('#box-dropdown-produtor') && !e.target.closest('#box-dropdown-fazenda')) {
                 document.querySelectorAll('.confere-dropdown').forEach(d => d.classList.add('hidden'));
             }
         });
         
         function populateConfereFilters() {
-            const equipes = new Set(), datas = new Set(), produtores = new Set(), fazendas = new Set();
-            
+            const eqs = new Set(), dts = new Set(), prs = new Set(), fzs = new Set();
             confereRawRows.forEach(r => {
-                if (r.equipe !== 'N/I') equipes.add(r.equipe);
-                if (r.data !== 'N/I') datas.add(r.data);
-                if (r.solicitante !== 'N/I') produtores.add(r.solicitante);
-                if (r.fazenda !== 'N/I') fazendas.add(r.fazenda);
+                if (r.equipe !== 'N/I') eqs.add(r.equipe);
+                if (r.data !== 'N/I') dts.add(r.data);
+                if (r.solicitante !== 'N/I') prs.add(r.solicitante);
+                if (r.fazenda !== 'N/I') fzs.add(r.fazenda);
             });
 
-            const buildCheckboxes = (set, className, isDate = false) => {
+            const buildCheckboxes = (set, cls, isDate = false) => {
                 let arr = Array.from(set);
                 if (isDate) {
                     arr.sort((a, b) => {
@@ -6281,21 +6354,19 @@
                         if (pa.length === 3 && pb.length === 3) return new Date(pb[2], pb[1]-1, pb[0]) - new Date(pa[2], pa[1]-1, pa[0]);
                         return b.localeCompare(a);
                     });
-                } else {
-                    arr.sort();
-                }
+                } else arr.sort();
                 return arr.map(v => `
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 p-2 hover:bg-slate-100 rounded-md transition-colors w-full">
-                        <input type="checkbox" value="${v}" onchange="applyConfereFilters()" class="${className} h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500">
+                        <input type="checkbox" value="${v}" onchange="applyConfereFilters()" class="${cls} h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500">
                         <span class="truncate w-full">${v}</span>
                     </label>
                 `).join('');
             };
 
-            document.getElementById('chk-confere-equipe').innerHTML = buildCheckboxes(equipes, 'chk-equipe-item');
-            document.getElementById('chk-confere-data').innerHTML = buildCheckboxes(datas, 'chk-data-item', true);
-            document.getElementById('chk-confere-produtor').innerHTML = buildCheckboxes(produtores, 'chk-produtor-item');
-            document.getElementById('chk-confere-fazenda').innerHTML = buildCheckboxes(fazendas, 'chk-fazenda-item');
+            document.getElementById('chk-confere-equipe').innerHTML = buildCheckboxes(eqs, 'chk-equipe-item');
+            document.getElementById('chk-confere-data').innerHTML = buildCheckboxes(dts, 'chk-data-item', true);
+            document.getElementById('chk-confere-produtor').innerHTML = buildCheckboxes(prs, 'chk-produtor-item');
+            document.getElementById('chk-confere-fazenda').innerHTML = buildCheckboxes(fzs, 'chk-fazenda-item');
         }
 
         function clearConfereFilters() {
@@ -6309,12 +6380,7 @@
             let prs = Array.from(document.querySelectorAll('.chk-produtor-item:checked')).map(c => c.value);
             let fzs = Array.from(document.querySelectorAll('.chk-fazenda-item:checked')).map(c => c.value);
 
-            // Verifica se a categoria está vazia (logo, permite todas as linhas daquela categoria)
-            const isEqAll = eqs.length === 0;
-            const isDtAll = dts.length === 0;
-            const isPrAll = prs.length === 0;
-            const isFzAll = fzs.length === 0;
-
+            const isEqAll = eqs.length === 0, isDtAll = dts.length === 0, isPrAll = prs.length === 0, isFzAll = fzs.length === 0;
             const validEqs = new Set(), validDts = new Set(), validPrs = new Set(), validFzs = new Set();
 
             const filteredRows = confereRawRows.filter(r => {
@@ -6323,7 +6389,6 @@
                 const mPr = isPrAll || prs.includes(r.solicitante);
                 const mFz = isFzAll || fzs.includes(r.fazenda);
 
-                // Permite a cascata: se uma linha atende os "outros" 3 filtros, ela aparece como opção neste
                 if (mDt && mPr && mFz) validEqs.add(r.equipe);
                 if (mEq && mPr && mFz) validDts.add(r.data);
                 if (mEq && mDt && mFz) validPrs.add(r.solicitante);
@@ -6332,15 +6397,10 @@
                 return mEq && mDt && mPr && mFz;
             });
 
-            // Oculta os checkboxes que não fazem sentido com o filtro atual
-            const updateCheckboxes = (className, validSet) => {
-                document.querySelectorAll('.' + className).forEach(chk => {
-                    if (!validSet.has(chk.value)) {
-                        chk.checked = false; 
-                        chk.parentElement.style.display = 'none'; 
-                    } else {
-                        chk.parentElement.style.display = 'flex'; 
-                    }
+            const updateCheckboxes = (cls, validSet) => {
+                document.querySelectorAll('.' + cls).forEach(chk => {
+                    if (!validSet.has(chk.value)) { chk.checked = false; chk.parentElement.style.display = 'none'; } 
+                    else chk.parentElement.style.display = 'flex';
                 });
             };
 
@@ -6349,19 +6409,14 @@
             updateCheckboxes('chk-produtor-item', validPrs);
             updateCheckboxes('chk-fazenda-item', validFzs);
 
-            // Atualiza os títulos dos Dropdowns (Ex: "Todos os Produtores (19)" ou "Colorado")
-            const updateTitle = (id, arr, emptyText, listClassName) => {
+            const updateTitle = (id, arr, emptyText, listCls) => {
                 const el = document.getElementById(id);
                 if (!el) return;
-                
                 if (arr.length === 0) {
                     let visibleCount = 0;
-                    document.querySelectorAll('.' + listClassName).forEach(chk => {
-                        if (chk.parentElement.style.display !== 'none') visibleCount++;
-                    });
+                    document.querySelectorAll('.' + listCls).forEach(chk => { if (chk.parentElement.style.display !== 'none') visibleCount++; });
                     el.innerText = `${emptyText} (${visibleCount})`;
-                }
-                else if (arr.length === 1) el.innerText = arr[0];
+                } else if (arr.length === 1) el.innerText = arr[0];
                 else el.innerText = `${arr.length} Selecionados`;
             };
             
@@ -6383,14 +6438,10 @@
                 return;
             }
 
-            let totalArea = 0;
-            let pontosValidos = 0; 
-
+            let totalArea = 0, pontosValidos = 0; 
             tbody.innerHTML = filtered.map(r => {
                 totalArea += r.area;
-                const ncbFmt = r.ncb !== '-' ? r.ncb : '';
-                const amPrFmt = r.amPr !== '-' ? r.amPr : '';
-                const unionPts = [ncbFmt, amPrFmt].filter(x => x).join(' / ');
+                const unionPts = [r.ncb !== '-' ? r.ncb : '', r.amPr !== '-' ? r.amPr : ''].filter(x => x).join(' / ');
                 if (r.area > 0) pontosValidos++;
 
                 return `
@@ -6407,154 +6458,156 @@
 
             document.getElementById('kpi-confere-area').innerText = `${totalArea.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ha`;
             document.getElementById('kpi-confere-linhas').innerText = `${pontosValidos}`;
-            
-            const tamAmostra = pontosValidos > 0 ? (totalArea / pontosValidos) : 0;
-            document.getElementById('kpi-confere-amostra').innerText = `${tamAmostra.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} ha/pt`;
+            document.getElementById('kpi-confere-amostra').innerText = `${pontosValidos > 0 ? (totalArea / pontosValidos).toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : 0} ha/pt`;
         }
 
-        function renderConfereTable(filtered) {
-            const tbody = document.getElementById('confere-table-body');
-            if (!filtered.length) {
-                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-semibold italic">Nenhum registro encontrado para este cruzamento de filtros.</td></tr>`;
-                document.getElementById('kpi-confere-area').innerText = '0,00 ha';
-                document.getElementById('kpi-confere-amostra').innerText = '0,0 ha/pt';
-                document.getElementById('kpi-confere-linhas').innerText = '0';
-                return;
-            }
-
-            let totalArea = 0;
-            let pontosValidos = 0; 
-
-            tbody.innerHTML = filtered.map(r => {
-                totalArea += r.area;
-                const ncbFmt = r.ncb !== '-' ? r.ncb : '';
-                const amPrFmt = r.amPr !== '-' ? r.amPr : '';
-                const unionPts = [ncbFmt, amPrFmt].filter(x => x).join(' / ');
-                if (r.area > 0) pontosValidos++;
-
-                return `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="p-3 font-semibold text-slate-700">${r.data}</td>
-                        <td class="p-3 font-bold text-blue-800"><i class="fa-solid fa-users text-[10px] mr-1"></i> ${r.equipe}</td>
-                        <td class="p-3 text-slate-600">${r.solicitante}</td>
-                        <td class="p-3 font-bold text-slate-900">${r.fazenda}</td>
-                        <td class="p-3 text-center text-slate-500 font-mono">${unionPts || '-'}</td>
-                        <td class="p-3 text-right font-black text-emerald-700">${r.area.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            document.getElementById('kpi-confere-area').innerText = `${totalArea.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ha`;
-            document.getElementById('kpi-confere-linhas').innerText = `${pontosValidos}`;
-            
-            const tamAmostra = pontosValidos > 0 ? (totalArea / pontosValidos) : 0;
-            document.getElementById('kpi-confere-amostra').innerText = `${tamAmostra.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} ha/pt`;
-        }
-        // =========================================================================
-        // DEIXAR MAPAS LIMPOS POR PADRÃO (Apenas Contorno do Perímetro)
-        // =========================================================================
         window.addEventListener('DOMContentLoaded', () => {
-            const boxesToUncheck = [
-                'chk-labels', 'chk-values', 
-                'vrate-chk-labels', 'vrate-chk-values', 
-                'seeds-chk-labels', 'seeds-chk-values'
-            ];
-            
-            boxesToUncheck.forEach(id => {
+            ['chk-labels', 'chk-values', 'vrate-chk-labels', 'vrate-chk-values', 'seeds-chk-labels', 'seeds-chk-values'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.checked = false;
-            });
+            });           
         });
-        // =========================================================================
-        // HISTÓRICO E EXCLUSÃO DE RELATÓRIOS DE VISITA TÉCNICA
-        // =========================================================================
         
-        async function loadVisitHistory() {
-            const tbody = document.getElementById('visit-table-body');
-            if (!tbody) return;
-
-            tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Carregando histórico na nuvem...</td></tr>`;
-
-            try {
-                // CORREÇÃO: Buscando na coleção correta "visit_reports"
-                const snapshot = await db.collection("visit_reports").get();
-                let relatorios = [];
-
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    
-                    // FILTRO DE SEGURANÇA: Só exibe a fazenda se o usuário for admin ou tiver permissão explícita nela
-                    if (currentUserRole !== 'admin' && !currentUserAllowedFarms.includes('all')) {
-                        if (!currentUserAllowedFarms.includes(d.farmId)) {
-                            return; // Pula este relatório e não mostra na tabela
-                        }
-                    }
-                    relatorios.push({ id: doc.id, ...d });
-                });
-
-                if (relatorios.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 italic">Nenhum relatório de visita encontrado.</td></tr>`;
-                    return;
-                }
-
-                // Ordena os relatórios do mais recente para o mais antigo
-                relatorios.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-                let html = '';
-                relatorios.forEach(data => {
-                    const dataFormatada = data.createdAt ? new Date(data.createdAt).toLocaleDateString('pt-BR') : '-';
-
-                    // Botões Padrões (Sempre aparecem)
-                    let acoesHtml = `
-                        <button onclick="viewVisitReport('${data.id}')" class="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-eye mr-1"></i> Ler</button>
-                        <button onclick="baixarPdfHistoricoVisita('${data.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm mr-1"><i class="fa-solid fa-file-pdf mr-1"></i> PDF</button>
-                    `;
-
-                    // Lixeira protegida: Só aparece se canEditVisit for true
-                    if (typeof canEditVisit !== 'undefined' && canEditVisit) {
-                        acoesHtml += `
-                            <button onclick="deletarRelatorioVisita('${data.id}')" class="text-red-500 hover:text-red-700 px-3 py-1.5 bg-red-50 rounded-lg font-bold transition-all" title="Excluir Relatório">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        `;
-                    }
-
-                    html += `
-                        <tr class="hover:bg-slate-50 border-b border-slate-200">
-                            <td class="p-3 font-semibold text-slate-800">${dataFormatada}</td>
-                            <td class="p-3 font-bold text-slate-700">${data.farmName || '-'} <br> <span class="text-[10px] font-medium text-slate-500">Produtor: ${data.producer || 'Não informado'}</span></td>
-                            <td class="p-3 text-slate-600 font-medium">Safra ${data.safra || '-'} <br> <span class="text-[10px] text-emerald-700 font-bold">Local: ${data.talhao !== 'Geral' && data.talhao ? 'T. ' + data.talhao : (data.talhao || '-')}</span></td>
-                            <td class="p-3 text-right">${acoesHtml}</td>
-                        </tr>
-                    `;
-                });
-
-                tbody.innerHTML = html;
-
-            } catch (error) {
-                console.error("Erro ao carregar histórico de visitas:", error);
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-red-500 font-bold">Erro ao carregar o histórico.</td></tr>`;
+        // =========================================================================
+        // TROCA DE ABAS COM GERENCIAMENTO DE MAPAS E PERMISSÕES (CÓDIGO FINAL)
+        // =========================================================================
+        function switchTab(tab) {
+            // 1. Verificação de Permissões
+            if (tab === 'vrate' && typeof canAccessVRate !== 'undefined' && !canAccessVRate) {
+                alert("Você não possui permissão de acesso ao Módulo de Taxa Variável & Adubação.");
+                return;
             }
-        }
-
-        async function deletarRelatorioVisita(id) {
-            if (!canEditVisit) {
-                alert("Você não tem permissão para excluir relatórios. Apenas editores ou administradores podem realizar esta ação.");
+            if (tab === 'visit' && typeof canAccessVisit !== 'undefined' && !canAccessVisit) {
+                alert("Você não possui permissão de acesso ao Módulo de Relatório de Visita.");
+                return;
+            }
+            if (tab === 'seeds' && typeof canAccessSeeds !== 'undefined' && !canAccessSeeds) {
+                alert("Você não possui permissão de acesso ao Módulo de Sementes & Plantio.");
+                return;
+            }
+            if (tab === 'sampling' && typeof canAccessSampling !== 'undefined' && !canAccessSampling) {
+                alert("Você não possui permissão de acesso ao Módulo de Amostragem de Solo.");
                 return;
             }
 
-            if (confirm("Tem certeza que deseja excluir este relatório permanentemente do banco de dados?")) {
-                try {
-                    // CORREÇÃO: Apagando da coleção correta "visit_reports"
-                    await db.collection("visit_reports").doc(id).delete();
-                    alert("Relatório excluído com sucesso!");
-                    loadVisitHistory(); // Atualiza a tabela na tela imediatamente
-                } catch (erro) {
-                    console.error("Erro ao apagar:", erro);
-                    alert("Erro ao excluir. Tente novamente.");
+            // 2. Oculta tudo e ajusta as cores dos botões
+            ['maps', 'vrate', 'seeds', 'sampling', 'users', 'recommendation', 'visit'].forEach(t => {
+                const el = document.getElementById(`content-${t}`);
+                const btn = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
+                if (btn) {
+                    btn.classList.remove('bg-slate-800', 'text-white');
+                    btn.classList.add('text-slate-300');
                 }
+            });
+
+            // 3. Mostra a aba clicada
+            const activeContent = document.getElementById(`content-${tab}`);
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            if (activeContent) activeContent.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300');
+                activeBtn.classList.add('bg-slate-800', 'text-white');
             }
+
+            // Reseta sub-visões
+            if (tab === 'recommendation' && typeof toggleRecView === 'function') toggleRecView('form');
+            if (tab === 'visit' && typeof toggleVisitView === 'function') toggleVisitView('form');
+            
+            // Joga o scroll pro topo
+            const mainContainer = document.querySelector('main');
+            if (mainContainer) mainContainer.scrollTo(0, 0);
+
+            // 4. MÁGICA: Redimensionamento e Carregamento (Sem perder as cores!)
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+                
+                if (tab === 'vrate') {
+                    if (typeof initVRateMap === 'function') initVRateMap();
+                    if (typeof vrateMap !== 'undefined' && vrateMap !== null) vrateMap.invalidateSize();
+                    
+                    // Se já processou o Excel, atualiza as cores. Senão, carrega a fazenda cinza.
+                    if (typeof vrateProcessedData !== 'undefined' && vrateProcessedData.length > 0) {
+                        if (typeof vrateUpdateMap === 'function') vrateUpdateMap();
+                    } else {
+                        if (typeof vrateChangeFarm === 'function') vrateChangeFarm();
+                    }
+                } 
+                else if (tab === 'seeds') {
+                    if (typeof initSeedsMap === 'function') initSeedsMap();
+                    if (typeof seedsMap !== 'undefined' && seedsMap !== null) seedsMap.invalidateSize();
+                    
+                    // Mesma lógica de manter as cores para as sementes
+                    if ((typeof seedsProcessedData !== 'undefined' && seedsProcessedData.length > 0) || 
+                        (typeof seedsCultivarMap !== 'undefined' && Object.keys(seedsCultivarMap).length > 0)) {
+                        if (typeof seedsUpdateMap === 'function') seedsUpdateMap();
+                    } else {
+                        if (typeof seedsChangeFarm === 'function') seedsChangeFarm();
+                    }
+                } 
+                else if (tab === 'sampling') {
+                    if (typeof fetchSamplingData === 'function') fetchSamplingData();
+                } 
+                else if (tab === 'maps') {
+                    if (typeof mapLeft !== 'undefined' && mapLeft !== null) mapLeft.invalidateSize();
+                    if (typeof mapRight !== 'undefined' && mapRight !== null) mapRight.invalidateSize();
+                    if (typeof updateGISMap === 'function') updateGISMap();
+                } 
+                else if (tab === 'visit') {
+                    if (typeof canEditVisit !== 'undefined' && !canEditVisit) {
+                        if (typeof toggleVisitView === 'function') toggleVisitView('history');
+                    }
+                    if (typeof loadVisitHistory === 'function') loadVisitHistory();
+                } 
+                else if (tab === 'recommendation') {
+                    const hist = document.getElementById('rec-history-view');
+                    if (hist && !hist.classList.contains('hidden') && typeof loadRecHistory === 'function') {
+                        loadRecHistory();
+                    }
+                }
+            }, 100);
         }
+
+        // =========================================================================
+        // ATUALIZAÇÃO FORÇADA DOS FILTROS E LIMPEZA DE CACHE
+        // =========================================================================
+        function changeActiveFarm(sourceSelectId) {
+            const selectedVal = document.getElementById(sourceSelectId).value;
+            
+            // Sincroniza selects de todas as abas
+            ['sel-farm', 'vrate-sel-farm', 'seeds-sel-farm', 'visit-sel-farm', 'rec-sel-farm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value !== selectedVal) el.value = selectedVal;
+            });
+
+            if(typeof populateSafraSelector === 'function') populateSafraSelector();
+            if(typeof populateTalhaoSelector === 'function') populateTalhaoSelector();
+
+            const isVisible = (id) => {
+                const el = document.getElementById('content-' + id);
+                return el && !el.classList.contains('hidden');
+            };
+
+            // Se mudou de fazenda, temos que limpar os dados da planilha processada anterior
+            if (typeof vrateProcessedData !== 'undefined') vrateProcessedData = [];
+            if (typeof seedsProcessedData !== 'undefined') seedsProcessedData = [];
+            if (typeof seedsCultivarMap !== 'undefined') seedsCultivarMap = {};
+
+            // Atualiza apenas o mapa que o usuário está vendo na tela
+            if (isVisible('seeds') && typeof seedsChangeFarm === 'function') seedsChangeFarm();
+            else if (isVisible('vrate') && typeof vrateChangeFarm === 'function') vrateChangeFarm();
+            else if (isVisible('maps') && typeof updateGISMap === 'function') updateGISMap();
+            else if (isVisible('recommendation')) {
+                if(typeof recChangeFarm === 'function') recChangeFarm();
+                const hist = document.getElementById('rec-history-view');
+                if (hist && !hist.classList.contains('hidden') && typeof loadRecHistory === 'function') loadRecHistory();
+            }
+            else if (isVisible('visit')) {
+                const hist = document.getElementById('visit-history-view');
+                if (hist && !hist.classList.contains('hidden') && typeof loadVisitHistory === 'function') loadVisitHistory();
+            }
+        }        
+        
     </script>
 </body>
 </html>
