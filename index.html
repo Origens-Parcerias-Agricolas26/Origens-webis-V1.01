@@ -1010,6 +1010,7 @@
                 <!-- MÓDULO 6: RELATÓRIO DE VISITA TÉCNICA -->
                 <div id="content-visit" class="hidden h-full flex flex-col space-y-4 overflow-y-auto pr-2">
                     
+                    <!-- CABEÇALHO DO MÓDULO 6 -->
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
                         <div>
                             <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -1027,26 +1028,6 @@
                             </button>
                         </div>
                     </div> 
-
-                    <div id="visit-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Produtor</label>
-                                <select id="visit-sel-producer" onchange="changeActiveProducer('visit-sel-producer')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Fazenda</label>
-                                <select id="visit-sel-farm" onchange="changeActiveFarm('visit-sel-farm')" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white"></select>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Safra</label>
-                                <input type="text" id="visit-sel-safra" placeholder="Ex: 2025/2026" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Talhão / Área</label>
-                                <input type="text" id="visit-sel-talhao" placeholder="Ex: Visita Geral ou Talhão 1" class="w-full text-xs font-bold p-2 border border-slate-300 rounded-lg bg-white">
-                            </div>
-                        </div> 
 
                     <!-- TELA 1: NOVO RELATÓRIO -->
                     <div id="visit-form-view" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col space-y-5">
@@ -1117,7 +1098,7 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div> 
+                    </div> <!-- FIM TELA 2 -->
 
                 </div>
                 
@@ -6564,10 +6545,12 @@
                     if (hist && !hist.classList.contains('hidden') && typeof loadRecHistory === 'function') {
                         loadRecHistory();
                     }
+                }                
+                else if (tab === 'users') {
+                    if (typeof renderAdminTables === 'function') renderAdminTables();
                 }
             }, 100);
-        }
-
+        };
         // =========================================================================
         // ATUALIZAÇÃO FORÇADA DOS FILTROS E LIMPEZA DE CACHE
         // =========================================================================
