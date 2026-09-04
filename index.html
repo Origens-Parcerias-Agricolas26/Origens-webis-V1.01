@@ -289,39 +289,84 @@
                                 <button onclick="processUploadedFiles()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg text-xs shadow">Processar & Salvar na Nuvem</button>
                             </div>
 
-                            <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Modo de Análise</label>
-                                    <select id="sel-mode" onchange="toggleViewMode()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
-                                        <option value="single">Camada Individual</option>
-                                        <option value="sidebyside">Comparar Lado a Lado (Swipe Split)</option>
-                                    </select>
-                                </div>
-                                <div id="box-single-depth">
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Camada de Amostragem</label>
-                                    <select id="sel-depth" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
-                                        <option value="d0_10">Camada 0 - 10 cm</option>
-                                        <option value="d10_20">Camada 10 - 20 cm</option>
-                                        <option value="d20_40">Camada 20 - 40 cm</option>
-                                    </select>
-                                </div>
-                                <div id="box-diff-depth" class="hidden space-y-2">
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-emerald-700 mb-0.5"><i class="fa-solid fa-arrow-left mr-1"></i>Lado Esquerdo</label>
-                                        <select id="sel-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-xs text-slate-800">
-                                            <option value="d0_10">Camada 0 - 10 cm</option>
-                                            <option value="d10_20">Camada 10 - 20 cm</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-blue-700 mb-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Lado Direito</label>
-                                        <select id="sel-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-xs text-slate-800">
-                                            <option value="d10_20" selected>Camada 10 - 20 cm</option>
-                                            <option value="d20_40">Camada 20 - 40 cm</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- SUBSTITUA DESDE AQUI -->
+<div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+    <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Modo de Análise</label>
+        <select id="sel-mode" onchange="toggleViewMode()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
+            <option value="single">Camada Individual</option>
+            <option value="sidebyside">Comparar Profundidades (Swipe)</option>
+            <option value="sidebyside_safra">Comparar Safras (Swipe)</option>
+            <option value="quad_split">Visão Quádrupla (2 Safras x 2 Prof.)</option>
+        </select>
+    </div>
+
+    <!-- MODO: Único -->
+    <div id="box-single-depth">
+        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Camada de Amostragem</label>
+        <select id="sel-depth" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
+            <option value="d0_10">Camada 0 - 10 cm</option>
+            <option value="d10_20">Camada 10 - 20 cm</option>
+            <option value="d20_40">Camada 20 - 40 cm</option>
+        </select>
+    </div>
+
+    <!-- MODO: Comparar Profundidades -->
+    <div id="box-diff-depth" class="hidden space-y-2">
+        <div class="flex gap-2">
+            <div class="w-1/2">
+                <label class="block text-[10px] font-bold text-emerald-700 mb-0.5"><i class="fa-solid fa-arrow-left mr-1"></i>Lado Esquerdo</label>
+                <select id="sel-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
+                    <option value="d0_10">Camada 0 - 10 cm</option>
+                    <option value="d10_20">Camada 10 - 20 cm</option>
+                </select>
+            </div>
+            <div class="w-1/2">
+                <label class="block text-[10px] font-bold text-blue-700 mb-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Lado Direito</label>
+                <select id="sel-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
+                    <option value="d10_20" selected>Camada 10 - 20 cm</option>
+                    <option value="d20_40">Camada 20 - 40 cm</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO: Comparar Safras -->
+    <div id="box-diff-safra" class="hidden space-y-2">
+        <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Camada Fixa</label>
+            <select id="sel-depth-fixed" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
+                <option value="d0_10">Camada 0 - 10 cm</option>
+                <option value="d10_20">Camada 10 - 20 cm</option>
+                <option value="d20_40">Camada 20 - 40 cm</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <div class="w-1/2">
+                <label class="block text-[10px] font-bold text-emerald-700 mb-0.5"><i class="fa-solid fa-arrow-left mr-1"></i>Safra Esq.</label>
+                <select id="sel-safra-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800"></select>
+            </div>
+            <div class="w-1/2">
+                <label class="block text-[10px] font-bold text-blue-700 mb-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Safra Dir.</label>
+                <select id="sel-safra-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO: Quad Split (Matriz de 4 Telas) -->
+    <div id="box-quad-split" class="hidden space-y-2 bg-indigo-50 border border-indigo-200 p-2 rounded-lg">
+        <span class="text-[10px] font-bold text-indigo-800 uppercase block mb-1">Matriz de Telas</span>
+        <div class="flex gap-2">
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Safra Base</label><select id="sel-quad-safra-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"></select></div>
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Safra Evolução</label><select id="sel-quad-safra-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"></select></div>
+        </div>
+        <div class="flex gap-2">
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Sup.</label><select id="sel-quad-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d0_10">0 - 10 cm</option><option value="d10_20">10 - 20 cm</option></select></div>
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Prof.</label><select id="sel-quad-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d10_20" selected>10 - 20 cm</option><option value="d20_40">20 - 40 cm</option></select></div>
+        </div>
+    </div>
+</div>
+<!-- ATÉ AQUI -->
 
                             <!-- PARÂMETROS DE SOLO -->
                             <div>
@@ -391,17 +436,39 @@
                         </div>
                     </div>
 
-                    <!-- Container do Mapa -->
-                    <div id="map-container" class="flex-1 bg-white rounded-2xl border border-slate-200 relative overflow-hidden shadow-sm flex flex-col">
-                        <div id="left-map-pane" class="map-pane-split"><div id="map-left" class="w-full h-full"></div></div>
-                        <div id="right-map-pane" class="map-pane-split"><div id="map-right" class="w-full h-full"></div></div>
-                        <div id="split-divider"><div id="split-divider-handle"><i class="fa-solid fa-arrows-left-right"></i></div></div>
-                        <div class="absolute bottom-6 right-6 bg-white/95 backdrop-blur p-4 rounded-xl shadow-xl border border-slate-200 z-30 min-w-[240px] max-h-[300px] overflow-y-auto">
-                            <span id="legend-title" class="text-xs font-black text-slate-900 uppercase block mb-2 border-b pb-1">Legenda QGIS</span>
-                            <div id="legend-items" class="space-y-1.5 text-xs font-semibold text-slate-700"></div>
-                        </div>
-                    </div>
-                </div> <!-- ESSA É A DIV FALTANTE QUE FECHA O MÓDULO GIS INTEIRO! -->
+                   <!-- SUBSTITUA DESDE AQUI -->
+<!-- Container do Mapa -->
+<div id="map-container" class="flex-1 bg-white rounded-2xl border border-slate-200 relative overflow-hidden shadow-sm flex flex-col z-10">
+    
+    <!-- MAPAS PARA SWIPE (Individual e Lado a Lado) -->
+    <div id="swipe-map-wrapper" class="absolute inset-0 z-10 flex w-full h-full bg-slate-300">
+        <div id="left-map-pane" class="relative flex-1 h-full bg-white">
+            <div id="map-left" class="w-full h-full"></div>
+        </div>
+        <div id="split-divider" class="w-1.5 bg-origens-green cursor-col-resize z-30 flex items-center justify-center hidden">
+            <div id="split-divider-handle" class="w-8 h-8 bg-white border-2 border-origens-green rounded-full flex items-center justify-center text-origens-green shadow">
+                <i class="fa-solid fa-arrows-left-right"></i>
+            </div>
+        </div>
+        <div id="right-map-pane" class="relative flex-1 h-full bg-white hidden">
+            <div id="map-right" class="w-full h-full"></div>
+        </div>
+    </div>
+
+    <!-- MAPAS PARA QUAD SPLIT (Visão 4 Telas) -->
+    <div id="quad-map-wrapper" class="absolute inset-0 z-20 hidden grid grid-cols-2 grid-rows-2 gap-1 bg-slate-400">
+        <div class="relative w-full h-full bg-white"><div id="map-quad-tl" class="w-full h-full"></div></div>
+        <div class="relative w-full h-full bg-white"><div id="map-quad-tr" class="w-full h-full"></div></div>
+        <div class="relative w-full h-full bg-white"><div id="map-quad-bl" class="w-full h-full"></div></div>
+        <div class="relative w-full h-full bg-white"><div id="map-quad-br" class="w-full h-full"></div></div>
+    </div>
+
+    <div class="absolute bottom-6 right-6 bg-white/95 backdrop-blur p-4 rounded-xl shadow-xl border border-slate-200 z-50 min-w-[240px] max-h-[300px] overflow-y-auto">
+        <span id="legend-title" class="text-xs font-black text-slate-900 uppercase block mb-2 border-b pb-1">Legenda QGIS</span>
+        <div id="legend-items" class="space-y-1.5 text-xs font-semibold text-slate-700"></div>
+    </div>
+</div>
+<!-- ATÉ AQUI -->
 
                 <!-- MÓDULO 2: TAXA VARIÁVEL & PRESCRIÇÃO -->
                 <div id="content-vrate" class="hidden h-full flex gap-6">
@@ -2293,36 +2360,72 @@
         }
 
         function toggleViewMode() {
-            const mode = document.getElementById('sel-mode').value;
-            const singleBox = document.getElementById('box-single-depth');
-            const diffBox = document.getElementById('box-diff-depth');
-            const rightPane = document.getElementById('right-map-pane');
-            const leftPane = document.getElementById('left-map-pane');
-            const divider = document.getElementById('split-divider');
+    const mode = document.getElementById('sel-mode').value;
 
-            if (mode === 'sidebyside') {
-                singleBox.classList.add('hidden');
-                diffBox.classList.remove('hidden');
-                rightPane.style.display = 'block';
-                divider.style.display = 'block';
-                splitPosition = 0.5;
-                divider.style.left = '50%';
-                applySplitWidths();
-                initSplitSlider();
-            } else {
-                singleBox.classList.remove('hidden');
-                diffBox.classList.add('hidden');
-                rightPane.style.display = 'none';
-                divider.style.display = 'none';
-                leftPane.style.width = '100%';
+    // 1. Esconde os menus forçando via estilo direto (ignora o CSS antigo)
+    document.getElementById('box-single-depth').style.display = 'none';
+    document.getElementById('box-diff-depth').style.display = 'none';
+    document.getElementById('box-diff-safra').style.display = 'none';
+    document.getElementById('box-quad-split').style.display = 'none';
+
+    const swipeWrapper = document.getElementById('swipe-map-wrapper');
+    const quadWrapper = document.getElementById('quad-map-wrapper');
+    const rightPane = document.getElementById('right-map-pane');
+
+    // 2. Controla as telas forçando o Flexbox e apagando a classe "hidden"
+    if (mode === 'quad_split') {
+        document.getElementById('box-quad-split').style.display = 'block';
+        swipeWrapper.style.display = 'none';
+        quadWrapper.style.display = 'grid';
+    } else {
+        quadWrapper.style.display = 'none';
+        swipeWrapper.style.display = 'flex'; // Força a tela a virar Flexbox 50/50
+
+        if (mode === 'single') {
+            document.getElementById('box-single-depth').style.display = 'block';
+            if(rightPane) {
+                rightPane.style.display = 'none'; // Desliga a direita
             }
-
-            setTimeout(() => {
-                if (mapLeft) mapLeft.invalidateSize();
-                if (mapRight) mapRight.invalidateSize();
-                updateGISMap();
-            }, 100);
+        } else if (mode === 'sidebyside' || mode === 'sidebyside_safra') {
+            if (mode === 'sidebyside') document.getElementById('box-diff-depth').style.display = 'block';
+            if (mode === 'sidebyside_safra') document.getElementById('box-diff-safra').style.display = 'block';
+            
+            if(rightPane) {
+                rightPane.classList.remove('hidden'); // Limpa sujeiras do CSS
+                rightPane.style.display = 'block'; // Liga a direita na marra
+                rightPane.style.width = '100%'; // Garante a proporção da divisão
+            }
         }
+    }
+
+    // 3. Atualiza os mapas e a câmera de forma sincronizada
+    setTimeout(() => {
+        const currentCenter = mapLeft.getCenter();
+        const currentZoom = mapLeft.getZoom();
+
+        if (mapLeft) mapLeft.invalidateSize(true);
+        
+        if (mode === 'sidebyside' || mode === 'sidebyside_safra') {
+            if (mapRight) {
+                mapRight.invalidateSize(true);
+                // "Copia" a câmera da esquerda para a direita para não nascer cinza
+                mapRight.setView(currentCenter, currentZoom, { animate: false });
+            }
+        }
+        
+        if (mode === 'quad_split' && typeof mapQuadTL !== 'undefined' && mapQuadTL) {
+            mapQuadTL.invalidateSize(true); mapQuadTL.setView(currentCenter, currentZoom, { animate: false });
+            mapQuadTR.invalidateSize(true); mapQuadTR.setView(currentCenter, currentZoom, { animate: false });
+            mapQuadBL.invalidateSize(true); mapQuadBL.setView(currentCenter, currentZoom, { animate: false });
+            mapQuadBR.invalidateSize(true); mapQuadBR.setView(currentCenter, currentZoom, { animate: false });
+        }
+        
+        // Manda desenhar os polígonos coloridos
+        if (typeof updateGISMap === 'function') {
+            updateGISMap();
+        }
+    }, 200);
+}
 
         function initSplitSlider() {
             const divider = document.getElementById('split-divider');
@@ -3066,31 +3169,65 @@ async function generateBatchPDFs() {
     }
 }
         function initLeafletMap() {
-            if (!mapLeft) {
-                mapLeft = L.map('map-left').setView([-12.592, -58.012], 13);
-                mapRight = L.map('map-right', { zoomControl: false }).setView([-12.592, -58.012], 13);
+    // 1. Inicializa os mapas do Swipe (2 telas)
+    if (!mapLeft) mapLeft = L.map('map-left', { zoomControl: false }).setView([-15.5, -55.5], 4);
+    if (!mapRight) mapRight = L.map('map-right', { zoomControl: false }).setView([-15.5, -55.5], 4);
 
-                changeBasemap();
+    // 2. Inicializa os mapas da Visão Quádrupla (4 telas)
+    if (!mapQuadTL) mapQuadTL = L.map('map-quad-tl', { zoomControl: false }).setView([-15.5, -55.5], 4);
+    if (!mapQuadTR) mapQuadTR = L.map('map-quad-tr', { zoomControl: false }).setView([-15.5, -55.5], 4);
+    if (!mapQuadBL) mapQuadBL = L.map('map-quad-bl', { zoomControl: false }).setView([-15.5, -55.5], 4);
+    if (!mapQuadBR) mapQuadBR = L.map('map-quad-br', { zoomControl: false }).setView([-15.5, -55.5], 4);
 
-                mapLeft.on('move', () => { if (!isSyncing) { isSyncing = true; mapRight.setView(mapLeft.getCenter(), mapLeft.getZoom(), { animate: false }); isSyncing = false; } });
-                mapRight.on('move', () => { if (!isSyncing) { isSyncing = true; mapLeft.setView(mapRight.getCenter(), mapRight.getZoom(), { animate: false }); isSyncing = false; } });
+    // Adiciona controle de zoom apenas no mapa principal para economizar espaço
+    L.control.zoom({ position: 'topright' }).addTo(mapLeft);
 
-                populateFarmSelector();
-            }
-        }
+    // 3. Aplica a imagem de satélite em todos eles
+    if (typeof changeBasemap === 'function') changeBasemap();
+    
+    // 4. MÁGICA DA SINCRONIZAÇÃO: Arrastar um mapa move os outros juntos!
+    const syncMaps = [mapLeft, mapRight, mapQuadTL, mapQuadTR, mapQuadBL, mapQuadBR];
+    syncMaps.forEach(sourceMap => {
+        sourceMap.on('move', function() {
+            if (isSyncing) return;
+            isSyncing = true;
+            const center = sourceMap.getCenter();
+            const zoom = sourceMap.getZoom();
+            
+            syncMaps.forEach(targetMap => {
+                if (targetMap !== sourceMap) {
+                    targetMap.setView(center, zoom, { animate: false });
+                }
+            });
+            isSyncing = false;
+        });
+    });
+}
 
         function changeBasemap() {
-            if (!mapLeft || !mapRight) return;
-            const selectedType = document.getElementById('sel-basemap').value;
+    const mode = document.getElementById('sel-basemap').value;
+    let url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'; // Esri Padrão
+    
+    if (mode === 'google') {
+        url = 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}';
+    }
 
-            if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
-            if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
+    // Remove as camadas de satélite antigas se existirem
+    if (tileLayerLeft) mapLeft.removeLayer(tileLayerLeft);
+    if (tileLayerRight) mapRight.removeLayer(tileLayerRight);
+    if (tileLayerQuadTL) mapQuadTL.removeLayer(tileLayerQuadTL);
+    if (tileLayerQuadTR) mapQuadTR.removeLayer(tileLayerQuadTR);
+    if (tileLayerQuadBL) mapQuadBL.removeLayer(tileLayerQuadBL);
+    if (tileLayerQuadBR) mapQuadBR.removeLayer(tileLayerQuadBR);
 
-            const esriUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-            tileLayerLeft = L.tileLayer(esriUrl, { attribution: 'Origens &copy; Esri', maxZoom: 18 }).addTo(mapLeft);
-            tileLayerRight = L.tileLayer(esriUrl, { attribution: 'Esri', maxZoom: 18 }).addTo(mapRight);
-            updateGISMap();
-        }
+    // Aplica o novo satélite em todos os 6 mapas do painel GIS
+    tileLayerLeft = L.tileLayer(url, { maxZoom: 20 }).addTo(mapLeft);
+    tileLayerRight = L.tileLayer(url, { maxZoom: 20 }).addTo(mapRight);
+    tileLayerQuadTL = L.tileLayer(url, { maxZoom: 20 }).addTo(mapQuadTL);
+    tileLayerQuadTR = L.tileLayer(url, { maxZoom: 20 }).addTo(mapQuadTR);
+    tileLayerQuadBL = L.tileLayer(url, { maxZoom: 20 }).addTo(mapQuadBL);
+    tileLayerQuadBR = L.tileLayer(url, { maxZoom: 20 }).addTo(mapQuadBR);
+}
 
         function getQGISRules(param) {
             if (param === 'S') {
