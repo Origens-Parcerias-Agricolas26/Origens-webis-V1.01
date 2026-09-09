@@ -3579,7 +3579,13 @@ async function generateBatchPDFs() {
             return true;
         },
         style: f => {
-            const rawVal = typeof getFeatureDepthData === 'function' ? getFeatureDepthData(f, depthKey, safrasArray)[param] : null;
+            let rawVal = typeof getFeatureDepthData === 'function' ? getFeatureDepthData(f, depthKey, safrasArray)[param] : null;
+            
+            // 1. FORÇA O ARREDONDAMENTO PARA A COR
+            if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+                rawVal = parseFloat(parseFloat(rawVal).toFixed(1));
+            }
+
             const matched = typeof getMatchedRule === 'function' ? getMatchedRule(rawVal, rules) : null;
             let color = matched ? matched.color : '#94a3b8';
 
@@ -3592,7 +3598,13 @@ async function generateBatchPDFs() {
         },
         onEachFeature: (f, layer) => {
             const depthData = typeof getFeatureDepthData === 'function' ? getFeatureDepthData(f, depthKey, safrasArray) : {};
-            const rawVal = depthData[param];
+            let rawVal = depthData[param];
+            
+            // 2. FORÇA O ARREDONDAMENTO PARA O TEXTO
+            if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+                rawVal = parseFloat(parseFloat(rawVal).toFixed(1));
+            }
+
             const displayVal = typeof formatDisplayValue === 'function' ? formatDisplayValue(rawVal) : rawVal;
             const subName = f.properties.Subs || f.properties.Subdivisao || f.properties.Talhao || 'Gleba';
 
