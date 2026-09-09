@@ -3694,19 +3694,33 @@ async function generateBatchPDFs() {
         return val !== null && val !== undefined && val !== '';
     });
 
-    legendTitle.innerText = `${param}`;
+    // Ocultamos o título antigo, pois ele fará parte da nova caixa retrátil
+        legendTitle.innerText = "";
 
-    if (!hasValidData) {
-        legendItems.innerHTML = `
-            <div class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] font-semibold space-y-1">
-                <span class="font-bold block"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Sem dados para "${param}"</span>
-                <span>A planilha desta safra não possui valores para este parâmetro. Tente selecionar: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
-            </div>
-        `;
-    } else {
-        legendItems.innerHTML = rules.map(r => `<div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:${r.color}"></div><span>${r.label}</span></div>`).join('');
-    }
-}
+        if (!hasValidData) {
+            legendItems.innerHTML = `
+                <div class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] font-semibold space-y-1">
+                    <span class="font-bold block"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Sem dados para "${param}"</span>
+                    <span>A planilha desta safra não possui valores para este parâmetro. Tente selecionar: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
+                </div>
+            `;
+        } else {
+            // 1. Gera a lista de cores igual você já fazia
+            const coresHTML = rules.map(r => `<div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:${r.color}"></div><span>${r.label}</span></div>`).join('');
+            
+            // 2. Envelopa as cores e o título na tag <details>
+            legendItems.innerHTML = `
+                <details open class="cursor-pointer group">
+                    <summary class="font-bold text-slate-800 outline-none select-none border-b border-gray-200 pb-1 mb-2">
+                        ${param}
+                        <span class="float-right text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="space-y-1 cursor-default">
+                        ${coresHTML}
+                    </div>
+                </details>
+            `;
+        }
 
         // =========================================================================
         // MÓDULO DE TAXA VARIÁVEL DE FERTILIZANTES
