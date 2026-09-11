@@ -3445,24 +3445,24 @@ async function generateBatchPDFs() {
                 // PREENCHA AQUI AS REGRAS DA CLASSIFICAÇÃO 2 PARA Mg%
             ];
         }
-    } else if (param === 'K%') {
+    } else if (param === 'K') {
         if (classificacao === "1") {
             return [
-                { min: 0, max: 1.00, color: '#802000', label: 'Nível 1 - < 1' },
-                { min: 1.01, max: 2.00, color: '#E65D0F', label: 'Nível 2 - 1.1 a 2' },
-                { min: 2.01, max: 3.00, color: '#FF961F', label: 'Nível 3 - 2.1 a 3' },
-                { min: 3.01, max: 4.00, color: '#FFC83B', label: 'Nível 4 - 3.1 a 4' },
-                { min: 4.01, max: 5.00, color: '#FFF5AA', label: 'Nível 5 - 4.1 a 5' },
-                { min: 5.01, max: Infinity, color: '#FFFFE0', label: 'Nível 6 - > 5' }
+                { min: 100.01, max: Infinity, color: '#FFFFE0', label: 'Nível 1 - > 100' },
+                { min: 80.01, max: 100.00, color: '#FFF5AA', label: 'Nível 2 - 81 a 100' },
+                { min: 60.01, max: 80.00, color: '#FFC83B', label: 'Nível 3 - 61 a 80' },
+                { min: 40.01, max: 60.00, color: '#FF961F', label: 'Nível 4 - 41 a 60' },
+                { min: 20.00, max: 40.00, color: '#E65D0F', label: 'Nível 5 - 20 a 40' },
+                { min: 0, max: 19.99, color: '#802000', label: 'Nível 6 - < 20' }
             ];
         } else {
             return [
-                { min: 0, max: 1.00, color: '#802000', label: 'Nível 1 - < 1' },
-                { min: 1.01, max: 2.00, color: '#E65D0F', label: 'Nível 2 - 1.1 a 2' },
-                { min: 2.01, max: 3.00, color: '#FF961F', label: 'Nível 3 - 2.1 a 3' },
-                { min: 3.01, max: 4.00, color: '#FFC83B', label: 'Nível 4 - 3.1 a 4' },
-                { min: 4.01, max: 5.00, color: '#FFF5AA', label: 'Nível 5 - 4.1 a 5' },
-                { min: 5.01, max: Infinity, color: '#FFFFE0', label: 'Nível 6 - > 5' }
+                { min: 100.01, max: Infinity, color: '#2B75E2', label: 'Nível 1 - > 100' },
+                { min: 80.01, max: 100.00, color: '#265922', label: 'Nível 2 - 81 a 100' },
+                { min: 60.01, max: 80.00, color: '#FFFF00', label: 'Nível 3 - 61 a 80' },
+                { min: 40.01, max: 60.00, color: '#FF961F', label: 'Nível 4 - 41 a 60' },
+                { min: 20.00, max: 40.00, color: '#E0482B', label: 'Nível 5 - 20 a 40' },
+                { min: 0, max: 19.99, color: '#801A1A', label: 'Nível 6 - < 20' }
             ];
         }
     } else if (param === 'K%') {
