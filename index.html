@@ -473,9 +473,31 @@
         <div class="relative w-full h-full bg-white"><div id="map-quad-br" class="w-full h-full"></div></div>
     </div>
 
-    <div class="absolute bottom-6 right-6 bg-white/50 backdrop-blur p-4 rounded-xl shadow-xl border border-slate-200 z-50 min-w-[240px] max-h-[300px] overflow-y-auto">
-        <span id="legend-title" class="text-xs font-black text-slate-900 uppercase block mb-2 border-b pb-1">Legenda QGIS</span>
-        <div id="legend-items" class="space-y-1.5 text-xs font-semibold text-slate-700"></div>
+    <div class="absolute bottom-6 right-6 bg-white p-4 rounded-xl shadow-2xl border border-slate-200 z-[9999] min-w-[320px] max-h-[400px] overflow-y-auto">
+        <div class="flex justify-between items-center mb-3">
+            <span id="legend-title" class="text-sm font-black text-slate-900 block leading-tight">Níveis de Parâmetro<br><span class="text-[10px] font-bold text-slate-500 uppercase">Unidade</span></span>
+            <button onclick="this.parentElement.parentElement.classList.toggle('hidden')" class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded hover:bg-slate-200"><i class="fa-solid fa-caret-down mr-1"></i>Fechar</button>
+        </div>
+        
+        <table class="w-full text-xs text-left">
+            <thead>
+                <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-200">
+                    <th class="pb-1.5 font-bold">Classe</th>
+                    <th class="pb-1.5 font-bold text-right">Área</th>
+                    <th class="pb-1.5 font-bold text-right">%</th>
+                </tr>
+            </thead>
+            <tbody id="legend-items" class="divide-y divide-slate-100">
+                <!-- Os itens serão injetados aqui pelo JavaScript -->
+            </tbody>
+            <tfoot>
+                <tr class="border-t border-slate-300 font-bold text-slate-900">
+                    <td class="pt-2">Total</td>
+                    <td id="legend-total-area" class="pt-2 text-right">0.00 ha</td>
+                    <td class="pt-2 text-right">100%</td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 </div>
 <!-- ATÉ AQUI -->               
@@ -3986,41 +4008,103 @@ async function generateBatchPDFs() {
             setTimeout(() => { window.isSyncing = false; }, 100);
         }
     }, 150);
-    // 5. Configuração da Legenda
+    // 5. Configuração da Legenda Analítica (Tabela de Áreas)
     const depthSingle = document.getElementById('sel-depth').value;
     const hasValidData = currentGeoJSON.features.some(f => {
         const val = typeof getFeatureDepthData === 'function' ? getFeatureDepthData(f, depthSingle, globalSafras)[param] : null;
         return val !== null && val !== undefined && val !== '';
     });
 
-    // Ocultamos o título antigo, pois ele fará parte da nova caixa retrátil
-        legendTitle.innerText = "";
+    // Pega os elementos da nova tabela HTML que criámos
+    const legendTotal = document.getElementById('legend-total-area');
 
-        if (!hasValidData) {
+    if (!hasValidData) {
+        if (legendTitle) legendTitle.innerHTML = `<span class="text-amber-600"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Sem Dados</span>`;
+        if (legendItems) {
             legendItems.innerHTML = `
-                <div class="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] font-semibold space-y-1">
-                    <span class="font-bold block"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Sem dados para "${param}"</span>
-                    <span>A planilha desta safra não possui valores para este parâmetro. Tente selecionar: <b>CTC, MO, Fósforo (P), Potássio (K), pH CaCl2, V% ou Classes de MO</b>.</span>
-                </div>
-            `;
-        } else {
-            // 1. Gera a lista de cores igual você já fazia
-            const coresHTML = rules.map(r => `<div class="flex items-center gap-2"><div class="w-3.5 h-3.5 rounded" style="background:${r.color}"></div><span>${r.label}</span></div>`).join('');
+                <tr>
+                    <td colspan="3" class="p-3 text-center text-amber-700 text-[11px] bg-amber-50 font-bold border-b border-amber-100">
+                        A planilha não possui dados de ${param} para a safra atual.
+                    </td>
+                </tr>`;
+        }
+        if (legendTotal) legendTotal.innerText = "0.00 ha";
+        
+    } else {
+        // Atualiza o título com o nome do parâmetro atual
+        if (legendTitle) legendTitle.innerHTML = `Níveis de ${param}<br><span class="text-[10px] font-bold text-slate-500 uppercase">Unidade base</span>`;
+
+        // Array para somar a área de cada classe
+        let ruleAreas = new Array(rules.length).fill(0);
+        let totalArea = 0;
+
+        // Percorre todos os talhões para calcular os hectares
+        currentGeoJSON.features.forEach(f => {
+            // Se houver filtro de talhão ativo, ignora os que estão fora
+            if (selectedTalhoes.length && !selectedTalhoes.includes(String(f.properties.Talhao))) return;
             
-            // 2. Envelopa as cores e o título na tag <details>
-            legendItems.innerHTML = `
-                <details open class="cursor-pointer group">
-                    <summary class="font-bold text-slate-800 outline-none select-none border-b border-gray-200 pb-1 mb-2">
-                        ${param}
-                        <span class="float-right text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div class="space-y-1 cursor-default">
-                        ${coresHTML}
-                    </div>
-                </details>
+            // Se houver filtro de safra ativo, ignora os que não pertencem
+            if (globalSafras && globalSafras.length) {
+                const featureSafra = f.properties.safra_origem || (typeof extractSafra === 'function' ? extractSafra(f.properties) : null);
+                const hasHistorico = f.properties && f.properties.safras_historico && globalSafras.some(s => f.properties.safras_historico[s] && f.properties.safras_historico[s][depthSingle]);
+                const hasDirectSafra = featureSafra && globalSafras.includes(featureSafra);
+                if (!hasHistorico && !hasDirectSafra) return;
+            }
+
+            // Pega o valor do parâmetro
+            let rawVal = typeof getFeatureDepthData === 'function' ? getFeatureDepthData(f, depthSingle, globalSafras)[param] : null;
+            if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+                rawVal = parseFloat(parseFloat(rawVal).toFixed(1));
+            }
+
+            // Verifica em qual Classe (regra) o valor se encaixa
+            const matchedRule = typeof getMatchedRule === 'function' ? getMatchedRule(rawVal, rules) : null;
+            
+            if (matchedRule) {
+                const ruleIndex = rules.indexOf(matchedRule);
+                
+                // Tenta puxar a área do arquivo GeoJSON (tenta vários nomes padrão do QGIS/Métrica)
+                // Se o seu GeoJSON tiver um nome diferente para a coluna da área, basta adicionar aqui!
+                const areaHectares = parseFloat(f.properties.Area_ha || f.properties.area_ha || f.properties.AREA_HA || f.properties.Area || f.properties.area || f.properties.AREA || f.properties.hectares || 0);
+                
+                ruleAreas[ruleIndex] += areaHectares;
+                totalArea += areaHectares;
+            }
+        });
+
+        // Monta as linhas da tabela
+        let rowsHTML = '';
+        rules.forEach((r, idx) => {
+            const area = ruleAreas[idx];
+            
+            // Calcula a percentagem. Se for menor que 1% (mas maior que 0), exibe "<1%" como na sua imagem
+            let percDisplay = "0%";
+            if (totalArea > 0) {
+                const percValue = (area / totalArea) * 100;
+                if (percValue > 0 && percValue < 1) {
+                    percDisplay = "<1%";
+                } else {
+                    percDisplay = percValue.toFixed(0) + "%";
+                }
+            }
+
+            rowsHTML += `
+                <tr>
+                    <td class="py-1.5 flex items-center gap-2 pr-2">
+                        <div class="w-4 h-4 rounded-sm border border-slate-300 shrink-0" style="background-color: ${r.color}"></div>
+                        <span class="font-medium whitespace-nowrap">${r.label}</span>
+                    </td>
+                    <td class="py-1.5 text-right font-medium text-slate-600 px-2">${area.toFixed(2)} ha</td>
+                    <td class="py-1.5 text-right font-bold text-slate-500 pl-2">${percDisplay}</td>
+                </tr>
             `;
-        } // <- Esta fecha o "else" da legenda
-    } // <- ADICIONE ESTA CHAVE! Ela fecha a função que estava aberta.
+        });
+
+        // Injeta tudo no HTML
+        if (legendItems) legendItems.innerHTML = rowsHTML;
+        if (legendTotal) legendTotal.innerText = `${totalArea.toFixed(2)} ha`;
+    } 
+} // <- FIM DA FUNÇÃO UPDATEGISMAP
 
         // =========================================================================
         // MÓDULO DE TAXA VARIÁVEL DE FERTILIZANTES
