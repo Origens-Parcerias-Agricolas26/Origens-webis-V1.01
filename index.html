@@ -473,32 +473,34 @@
         <div class="relative w-full h-full bg-white"><div id="map-quad-br" class="w-full h-full"></div></div>
     </div>
 
-    <div class="absolute bottom-6 right-6 bg-white/50 backdrop-blur p-4 rounded-xl shadow-2xl border border-slate-200 z-[9999] min-w-[320px] max-h-[400px] overflow-y-auto">
-        <div class="flex justify-between items-center mb-3">
-            <span id="legend-title" class="text-sm font-black text-slate-900 block leading-tight">Níveis de Parâmetro<br><span class="text-[10px] font-bold text-slate-500 uppercase">Unidade</span></span>
-            <button onclick="this.parentElement.parentElement.classList.toggle('hidden')" class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded hover:bg-slate-200"><i class="fa-solid fa-caret-down mr-1"></i>Fechar</button>
-        </div>
-        
-        <table class="w-full text-xs text-left">
-            <thead>
-                <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-200">
-                    <th class="pb-1.5 font-bold">Classe</th>
-                    <th class="pb-1.5 font-bold text-right">Área</th>
-                    <th class="pb-1.5 font-bold text-right">%</th>
-                </tr>
-            </thead>
-            <tbody id="legend-items" class="divide-y divide-slate-100">
-                <!-- Os itens serão injetados aqui pelo JavaScript -->
-            </tbody>
-            <tfoot>
-                <tr class="border-t border-slate-300 font-bold text-slate-900">
-                    <td class="pt-2">Total</td>
-                    <td id="legend-total-area" class="pt-2 text-right">0.00 ha</td>
-                    <td class="pt-2 text-right">100%</td>
-                </tr>
-            </tfoot>
-        </table>
+    <div class="absolute bottom-6 right-6 bg-white/50 backdrop-blur p-4 rounded-xl shadow-2xl border border-slate-200 z-[9999] min-w-[320px] max-h-[400px] overflow-y-auto transition-all">
+    <div class="flex justify-between items-center">
+        <span id="legend-title" class="text-sm font-black text-slate-900 block leading-tight">Níveis de Parâmetro<br><span class="text-[10px] font-bold text-slate-500 uppercase">Unidade</span></span>
+        <button onclick="const tbl = document.getElementById('legend-table'); tbl.classList.toggle('hidden'); this.innerHTML = tbl.classList.contains('hidden') ? '<i class=\'fa-solid fa-caret-up mr-1\'></i>Abrir' : '<i class=\'fa-solid fa-caret-down mr-1\'></i>Fechar';" class="text-[10px] font-bold bg-white/60 px-2 py-1 rounded border border-slate-200 hover:bg-white transition-colors">
+            <i class="fa-solid fa-caret-down mr-1"></i>Fechar
+        </button>
     </div>
+    
+    <table id="legend-table" class="w-full text-xs text-left mt-3 transition-all">
+        <thead>
+            <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-200">
+                <th class="pb-1.5 font-bold">Classe</th>
+                <th class="pb-1.5 font-bold text-right">Área</th>
+                <th class="pb-1.5 font-bold text-right">%</th>
+            </tr>
+        </thead>
+        <tbody id="legend-items" class="divide-y divide-slate-100/50">
+            <!-- Os itens serão injetados aqui pelo JavaScript -->
+        </tbody>
+        <tfoot>
+            <tr class="border-t border-slate-300 font-bold text-slate-900">
+                <td class="pt-2">Total</td>
+                <td id="legend-total-area" class="pt-2 text-right">0.00 ha</td>
+                <td class="pt-2 text-right">100%</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
 </div>
 <!-- ATÉ AQUI -->               
                 </div> <!-- ESSA É A DIV FALTANTE QUE FECHA O MÓDULO GIS INTEIRO! -->
