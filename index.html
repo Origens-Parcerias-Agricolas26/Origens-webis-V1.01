@@ -259,38 +259,67 @@
                             </div>
 
                             <div id="upload-box-admin" class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-3 hidden">
-                                <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
-                                <div>
-                                    <label class="block text-[11px] font-bold text-amber-900 mb-1">Ano Safra das Planilhas</label>
-                                    <select id="upload-safra-year" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-extrabold text-xs text-slate-900">
-                                        <option value="2026" selected>Safra 2026</option>
-                                        <option value="2027">Safra 2027</option>
-                                        <option value="2025">Safra 2025</option>
-                                        <option value="2024">Safra 2024</option>
-                                        <option value="2023">Safra 2023</option>
-                                        <option value="2022">Safra 2022</option>
-                                        <option value="2021">Safra 2021</option>
-                                        <option value="auto">Detectar da Planilha</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Perímetro / Subdivisões (.zip)</label>
-                                    <input type="file" id="file-shp" accept=".zip" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 0-10 cm (.xlsx)</label>
-                                    <input type="file" id="file-excel-0-10" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 10-20 cm (.xlsx)</label>
-                                    <input type="file" id="file-excel-10-20" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 20-40 cm (.xlsx)</label>
-                                    <input type="file" id="file-excel-20-40" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
-                                </div>
-                                <button onclick="processUploadedFiles()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg text-xs shadow">Processar & Salvar na Nuvem</button>
-                            </div>
+    <span class="text-xs font-extrabold text-amber-800 uppercase block"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Importar Projeto & Planilhas</span>
+    
+    <div>
+        <label class="block text-[11px] font-bold text-amber-900 mb-1">Ano Safra das Planilhas</label>
+        <select id="upload-safra-year" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-extrabold text-xs text-slate-900">
+            <option value="2026" selected>Safra 2026</option>
+            <option value="2027">Safra 2027</option>
+            <option value="2025">Safra 2025</option>
+            <option value="2024">Safra 2024</option>
+            <option value="2023">Safra 2023</option>
+            <option value="2022">Safra 2022</option>
+            <option value="2021">Safra 2021</option>
+            <option value="2020">Safra 2020</option>
+            <option value="auto">Detectar da Planilha</option>
+        </select>
+    </div>
+    
+    <div>
+        <label class="block text-[11px] font-bold text-slate-600 mb-1">Perímetro / Subdivisões (.zip)</label>
+        <input type="file" id="file-shp" accept=".zip" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+    </div>
+    
+    <div>
+        <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 0-10 cm (.xlsx)</label>
+        <input type="file" id="file-excel-0-10" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+    </div>
+    
+    <div>
+        <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 10-20 cm (.xlsx)</label>
+        <input type="file" id="file-excel-10-20" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+    </div>
+
+    <!-- NOVA CAMADA ADICIONADA AQUI -->
+    <div>
+        <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 0-20 cm (.xlsx)</label>
+        <input type="file" id="file-excel-0-20" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+    </div>
+    
+    <div>
+        <label class="block text-[11px] font-bold text-slate-600 mb-1">Análises 20-40 cm (.xlsx)</label>
+        <input type="file" id="file-excel-20-40" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800">
+    </div>
+    
+    <button onclick="processUploadedFiles()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg text-xs shadow">Processar & Salvar na Nuvem</button>
+
+    <div class="mt-4 pt-4 border-t border-amber-300/50 border-dashed space-y-2">
+        <span class="text-[11px] font-extrabold text-red-700 uppercase block"><i class="fa-solid fa-eraser mr-1"></i> Corrigir Erro (Excluir Dados)</span>
+        <div>
+            <select id="delete-depth" class="w-full bg-white border border-red-300 rounded-lg p-1.5 font-bold text-[11px] text-red-900 outline-none">
+                <option value="d0_10">Apagar dados de 0-10 cm</option>
+                <option value="d10_20">Apagar dados de 10-20 cm</option>
+                <option value="d0_20">Apagar dados de 0-20 cm</option>
+                <option value="d20_40">Apagar dados de 20-40 cm</option>
+            </select>
+        </div>
+        <button onclick="deleteDepthLayer()" class="w-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold py-1.5 rounded-lg text-[11px] shadow-sm transition-colors flex justify-center items-center gap-1.5">
+            <i class="fa-solid fa-trash-can"></i> Excluir da Safra Selecionada
+        </button>
+        <span class="text-[9px] text-amber-700 italic leading-tight block text-center">Atenção: A exclusão será aplicada na Safra selecionada no menu no topo deste painel.</span>
+    </div>
+</div> 
 
                             <!-- SUBSTITUA DESDE AQUI -->
 <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -310,6 +339,7 @@
         <select id="sel-depth" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-xs text-slate-800">
             <option value="d0_10">Camada 0 - 10 cm</option>
             <option value="d10_20">Camada 10 - 20 cm</option>
+            <option value="d0_20">Camada 0 - 20 cm</option>
             <option value="d20_40">Camada 20 - 40 cm</option>
         </select>
     </div>
@@ -322,12 +352,14 @@
                 <select id="sel-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
                     <option value="d0_10">Camada 0 - 10 cm</option>
                     <option value="d10_20">Camada 10 - 20 cm</option>
+                    <option value="d0_20">Camada 0 - 20 cm</option>
                 </select>
             </div>
             <div class="w-1/2">
                 <label class="block text-[10px] font-bold text-blue-700 mb-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Lado Direito</label>
                 <select id="sel-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
                     <option value="d10_20" selected>Camada 10 - 20 cm</option>
+                    <option value="d0_20">Camada 0 - 20 cm</option>
                     <option value="d20_40">Camada 20 - 40 cm</option>
                 </select>
             </div>
@@ -341,6 +373,7 @@
             <select id="sel-depth-fixed" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 font-bold text-[11px] text-slate-800">
                 <option value="d0_10">Camada 0 - 10 cm</option>
                 <option value="d10_20">Camada 10 - 20 cm</option>
+                <option value="d0_20">Camada 0 - 20 cm</option>
                 <option value="d20_40">Camada 20 - 40 cm</option>
             </select>
         </div>
@@ -364,8 +397,8 @@
             <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Safra Evolução</label><select id="sel-quad-safra-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"></select></div>
         </div>
         <div class="flex gap-2">
-            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Sup.</label><select id="sel-quad-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d0_10">0 - 10 cm</option><option value="d10_20">10 - 20 cm</option></select></div>
-            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Prof.</label><select id="sel-quad-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d10_20" selected>10 - 20 cm</option><option value="d20_40">20 - 40 cm</option></select></div>
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Sup.</label><select id="sel-quad-depth-a" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d0_10">0 - 10 cm</option><option value="d10_20">10 - 20 cm</option><option value="d0_20">0 - 20 cm</option></select></div>
+            <div class="w-1/2"><label class="block text-[10px] font-bold text-slate-600 mb-0.5">Camada Prof.</label><select id="sel-quad-depth-b" onchange="updateGISMap()" class="w-full bg-white border border-slate-300 rounded p-1 font-bold text-[10px]"><option value="d10_20" selected>10 - 20 cm</option><option value="d0_20">0 - 20 cm</option><option value="d20_40">20 - 40 cm</option></select></div>
         </div>
     </div>
 </div>
@@ -6250,6 +6283,7 @@ async function generateBatchPDFs() {
     const shpInput = document.getElementById('file-shp');
     const excel010 = document.getElementById('file-excel-0-10');
     const excel1020 = document.getElementById('file-excel-10-20');
+    const excel020 = document.getElementById('file-excel-0-20'); // NOVA CAMADA 0-20 AQUI
     const excel2040 = document.getElementById('file-excel-20-40');
 
     if (!farmKey || !farmsDatabase[farmKey]) { alert("Selecione uma fazenda!"); return; }
@@ -6295,6 +6329,7 @@ async function generateBatchPDFs() {
 
             await parseExcel(excel010, 'd0_10');
             await parseExcel(excel1020, 'd10_20');
+            await parseExcel(excel020, 'd0_20');  // A NOSSA NOVA CAMADA AQUI!
             await parseExcel(excel2040, 'd20_40');
 
             let combinedFeatures = [];
@@ -6380,6 +6415,63 @@ async function generateBatchPDFs() {
     } else {
         alert("Envie pelo menos o arquivo Shapefile (.zip) da fazenda!");
      }
+}
+  function deleteDepthLayer() {
+    // 1. Pega os valores selecionados na interface
+    const farmKey = document.getElementById('sel-farm').value;
+    const depthKey = document.getElementById('delete-depth').value;
+    const safraTarget = document.getElementById('upload-safra-year').value; 
+
+    // Validações de segurança
+    if (!farmKey || typeof farmsDatabase === 'undefined' || !farmsDatabase[farmKey]) {
+        alert("Selecione uma fazenda primeiro!");
+        return;
+    }
+
+    if (safraTarget === 'auto') {
+        alert("Por favor, selecione um Ano Safra específico (ex: Safra 2026) no topo do painel antes de excluir.");
+        return;
+    }
+
+    // 2. Confirmação em formato de Pop-up
+    const nomeCamada = depthKey.replace('d', '').replace('_', '-');
+    const confirmMsg = `⚠️ ALERTA DE EXCLUSÃO ⚠️\n\nIsto vai apagar TODOS os dados da camada ${nomeCamada} cm pertencentes à ${safraTarget}.\n\nEsta ação não pode ser desfeita. Tem a certeza que deseja continuar?`;
+    
+    if (!confirm(confirmMsg)) return; // Se o utilizador clicar em "Cancelar", a função para aqui
+
+    // 3. Executa a limpeza varrendo os talhões
+    let apagados = 0;
+    const currentFarm = farmsDatabase[farmKey];
+    
+    if (currentFarm.geojson && currentFarm.geojson.features) {
+        currentFarm.geojson.features.forEach(f => {
+            // Navega até ao histórico da safra
+            if (f.properties && f.properties.safras_historico && f.properties.safras_historico[safraTarget]) {
+                // Se existir a camada que queremos apagar, remove-a do objeto
+                if (f.properties.safras_historico[safraTarget][depthKey]) {
+                    delete f.properties.safras_historico[safraTarget][depthKey];
+                    apagados++;
+                }
+            }
+        });
+    }
+
+    // 4. Feedback e atualização do ecrã
+    if (apagados > 0) {
+        alert(`✅ Sucesso! Os dados da camada ${nomeCamada} cm foram removidos de ${apagados} talhões.`);
+        
+        // Atualiza o mapa visualmente para refletir a exclusão
+        if (typeof updateGISMap === 'function') {
+            updateGISMap();
+        }
+
+        // NOTA: Se você tiver uma função que salva os dados na nuvem (ex: saveToCloud() ou saveToFirebase()),
+        // deve chamá-la aqui para garantir que a exclusão é salva permanentemente na base de dados!
+        // saveToCloud(); 
+        
+    } else {
+        alert(`ℹ️ Nenhum dado encontrado na camada ${nomeCamada} cm para a ${safraTarget}.`);
+    }
 }
         // =========================================================================
         // CORREÇÃO DOS FILTROS DE PRODUTOR E FAZENDA (ATUALIZADO PARA RECOMENDAÇÃO)
